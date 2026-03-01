@@ -289,21 +289,9 @@ python3 bench/chart.py   # generate SVG charts
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│                    CLI (clap)                    │
-├──────────┬──────────┬───────────┬───────────────┤
-│ Frecency │ Project  │ Waypoints │ Fuzzy Match   │
-│  Engine  │ Detect   │           │               │
-├──────────┴──────────┴───────────┴───────────────┤
-│              SQLite (rusqlite, WAL)              │
-├──────────────────┬──────────────────────────────┤
-│   AI Layer       │     TUI Picker              │
-│ (feature-gated)  │   (feature-gated)           │
-├──────────────────┴──────────────────────────────┤
-│          Shell Integration (6 shells)           │
-└─────────────────────────────────────────────────┘
-```
+<p align="center">
+<img src="docs/architecture.svg" alt="tp architecture diagram" width="574" />
+</p>
 
 - **Core** — Rust, <5MB static binary, <5ms local navigation
 - **Database** — SQLite with WAL mode, automatic migrations, index optimization
