@@ -1,5 +1,6 @@
 mod db;
 mod nav;
+mod project;
 
 fn main() {
     eprintln!("tp — teleport anywhere in your codebase");
