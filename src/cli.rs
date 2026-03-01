@@ -183,7 +183,8 @@ pub fn run() -> Result<()> {
     if cli.recall {
         #[cfg(feature = "ai")]
         {
-            crate::ai::recall::session_recall()?;
+            let conn = db::open()?;
+            crate::ai::recall::session_recall(&conn)?;
             return Ok(());
         }
         #[cfg(not(feature = "ai"))]
