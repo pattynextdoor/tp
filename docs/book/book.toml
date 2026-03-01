@@ -1,0 +1,16 @@
+[book]
+authors = ["pattynextdoor"]
+language = "en"
+multilingual = false
+src = "src"
+title = "tp — Teleport Anywhere"
+description = "Documentation for tp, an AI-enhanced, project-aware directory navigator"
+
+[build]
+build-dir = "../../target/book"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/pattynextdoor/tp"
+edit-url-template = "https://github.com/pattynextdoor/tp/edit/main/docs/book/src/{path}"
