@@ -19,8 +19,46 @@ pub struct NavResult {
 /// 4. Frecency + fuzzy → if top score >0.8, navigate immediately
 /// 5. AI reranking — if top scores are close, ask AI to break the tie
 /// 6. TUI picker or best guess fallback
-pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>> {
-    if query.is_empty() {
+///
+/// When `interactive` is true the TUI picker is shown for ambiguous
+/// results (or when there is no query at all, listing all entries).
+pub fn navigate(conn: &Connection, query: &[String], interactive: bool) -> Result<Option<NavResult>> {
+    if query.is_empty() && !interactive {
+        return Ok(None);
+    }
+
+    // `tp -i` with no query — show the top entries in the TUI picker.
+    if query.is_empty() && interactive {
+        let mut stmt = conn.prepare(
+            "SELECT path, frecency, last_access, access_count, project_root
+             FROM directories ORDER BY frecency DESC LIMIT 100",
+        )?;
+        let candidates: Vec<frecency::Candidate> = stmt
+            .query_map([], |row| {
+                Ok(frecency::Candidate {
+                    path: row.get(0)?,
+                    score: row.get::<_, f64>(1)?,
+                    frecency: row.get(1)?,
+                    last_access: row.get(2)?,
+                    access_count: row.get(3)?,
+                    project_root: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        #[cfg(feature = "tui")]
+        {
+            if let Some(path) = crate::tui::pick(&candidates)? {
+                return Ok(Some(NavResult {
+                    path,
+                    match_type: "picker".to_string(),
+                }));
+            }
+        }
+
+        // Suppress unused-variable warning when TUI feature is disabled.
+        let _ = &candidates;
+
         return Ok(None);
     }
 
@@ -105,6 +143,19 @@ pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>
     }
 
     // Step 6: TUI picker or best guess fallback
+    #[cfg(feature = "tui")]
+    {
+        if interactive && !candidates.is_empty() {
+            if let Some(path) = crate::tui::pick(&candidates)? {
+                return Ok(Some(NavResult {
+                    path,
+                    match_type: "picker".to_string(),
+                }));
+            }
+            return Ok(None); // User cancelled
+        }
+    }
+
     if let Some(best) = candidates.first() {
         return Ok(Some(NavResult {
             path: best.path.clone(),
@@ -133,7 +184,7 @@ mod tests {
     #[test]
     fn test_navigate_empty_query() {
         let conn = db::open_memory().unwrap();
-        let result = navigate(&conn, &[]).unwrap();
+        let result = navigate(&conn, &[], false).unwrap();
         assert!(result.is_none());
     }
 
@@ -143,7 +194,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
 
-        let result = navigate(&conn, &[path]).unwrap();
+        let result = navigate(&conn, &[path], false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "literal");
     }
@@ -156,7 +207,7 @@ mod tests {
 
         waypoints::add_waypoint(&conn, "test", dir).unwrap();
 
-        let result = navigate(&conn, &["!test".to_string()]).unwrap();
+        let result = navigate(&conn, &["!test".to_string()], false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "waypoint");
     }
@@ -173,7 +224,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = navigate(&conn, &["@myproject".to_string()]).unwrap();
+        let result = navigate(&conn, &["@myproject".to_string()], false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "project");
     }
@@ -186,7 +237,7 @@ mod tests {
         frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
         frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
 
-        let result = navigate(&conn, &["api".to_string()]).unwrap();
+        let result = navigate(&conn, &["api".to_string()], false).unwrap();
         assert!(result.is_some());
         // match_type will be "frecency" if score > 0.8
         let mt = &result.unwrap().match_type;
@@ -196,7 +247,7 @@ mod tests {
     #[test]
     fn test_navigate_no_match() {
         let conn = db::open_memory().unwrap();
-        let result = navigate(&conn, &["nonexistent_xyz_123".to_string()]).unwrap();
+        let result = navigate(&conn, &["nonexistent_xyz_123".to_string()], false).unwrap();
         assert!(result.is_none());
     }
 }

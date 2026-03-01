@@ -195,14 +195,14 @@ pub fn run() -> Result<()> {
     }
 
     // Main navigation flow
-    if cli.query.is_empty() {
+    if cli.query.is_empty() && !cli.interactive {
         eprintln!("Usage: tp <query> — teleport to a directory");
         eprintln!("       tp --help  — show all options");
         return Ok(());
     }
 
     let conn = db::open()?;
-    match crate::nav::navigate(&conn, &cli.query)? {
+    match crate::nav::navigate(&conn, &cli.query, cli.interactive)? {
         Some(result) => {
             // Print path to stdout — the shell wrapper captures this and does `cd`
             println!("{}", result.path);
