@@ -19,18 +19,21 @@ ENTRIES="${BENCH_ENTRIES:-500}"
 RUNS="${BENCH_RUNS:-200}"
 WARMUP="${BENCH_WARMUP:-10}"
 BENCH_DIR=$(mktemp -d)
+RESULTS_DIR="bench/results"
 
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+mkdir -p "$RESULTS_DIR"
+
 cleanup() {
-    rm -rf "$BENCH_DIR"
     # Clean up zoxide test entries
     for i in $(seq 1 "$ENTRIES"); do
         zoxide remove "$BENCH_DIR/project-$i/src" 2>/dev/null || true
     done
+    rm -rf "$BENCH_DIR"
 }
 trap cleanup EXIT
 
@@ -78,7 +81,7 @@ echo ""
 # --- Benchmark: Exact query ---
 echo -e "${GREEN}=== Exact query: 'project-42' ===${NC}"
 hyperfine --warmup "$WARMUP" --min-runs "$RUNS" -N --ignore-failure \
-    --export-json "$BENCH_DIR/exact.json" \
+    --export-json "$RESULTS_DIR/exact.json" \
     "zoxide query project-42" \
     "$TP project-42"
 echo ""
@@ -86,7 +89,7 @@ echo ""
 # --- Benchmark: Broad fuzzy query ---
 echo -e "${GREEN}=== Broad fuzzy query: 'project' ===${NC}"
 hyperfine --warmup "$WARMUP" --min-runs "$RUNS" -N --ignore-failure \
-    --export-json "$BENCH_DIR/fuzzy.json" \
+    --export-json "$RESULTS_DIR/fuzzy.json" \
     "zoxide query project" \
     "$TP project"
 echo ""
@@ -94,7 +97,7 @@ echo ""
 # --- Benchmark: Multi-token query ---
 echo -e "${GREEN}=== Multi-token query: 'project 250' ===${NC}"
 hyperfine --warmup "$WARMUP" --min-runs "$RUNS" -N --ignore-failure \
-    --export-json "$BENCH_DIR/multi.json" \
+    --export-json "$RESULTS_DIR/multi.json" \
     "zoxide query project 250" \
     "$TP project 250"
 echo ""
@@ -102,7 +105,7 @@ echo ""
 # --- Benchmark: Add (write) ---
 echo -e "${GREEN}=== Add (write operation) ===${NC}"
 hyperfine --warmup "$WARMUP" --min-runs "$RUNS" -N \
-    --export-json "$BENCH_DIR/add.json" \
+    --export-json "$RESULTS_DIR/add.json" \
     "zoxide add $BENCH_DIR/project-1/src" \
     "$TP add $BENCH_DIR/project-1/src"
 echo ""
@@ -110,7 +113,16 @@ echo ""
 # --- Summary ---
 echo -e "${GREEN}=== Summary ===${NC}"
 echo ""
-echo "JSON results saved to $BENCH_DIR/*.json"
+echo "JSON results saved to $RESULTS_DIR/*.json"
 echo ""
-echo "To explore results:"
-echo "  cat $BENCH_DIR/exact.json | jq '.results[] | {command, mean, stddev}'"
+if command -v jq &>/dev/null; then
+    for f in "$RESULTS_DIR"/*.json; do
+        name=$(basename "$f" .json)
+        echo -e "${YELLOW}$name:${NC}"
+        jq -r '.results[] | "  \(.command | split(" ") | .[0] | split("/") | .[-1])  \(.mean * 1000 | . * 100 | round / 100)ms ± \(.stddev * 1000 | . * 100 | round / 100)ms"' "$f"
+        echo ""
+    done
+else
+    echo "Install jq for formatted results, or explore manually:"
+    echo "  cat $RESULTS_DIR/exact.json | jq '.results[] | {command, mean, stddev}'"
+fi
