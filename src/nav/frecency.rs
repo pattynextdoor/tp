@@ -139,9 +139,16 @@ pub fn query_frecency(
     })?;
 
     let mut candidates: Vec<Candidate> = Vec::new();
+    let mut dead_paths: Vec<String> = Vec::new();
 
     for row in rows {
         let (path, frecency, last_access, access_count, project_root) = row?;
+
+        // Self-healing: skip and queue removal for paths that no longer exist
+        if !std::path::Path::new(&path).exists() {
+            dead_paths.push(path);
+            continue;
+        }
 
         let decayed = calculate_frecency(access_count, last_access, now);
         let fuzzy = matching::fuzzy_score(query, &path);
@@ -161,6 +168,81 @@ pub fn query_frecency(
             access_count,
             project_root,
         });
+    }
+
+    // Silently prune dead paths from the database
+    if !dead_paths.is_empty() {
+        prune_paths(conn, &dead_paths)?;
+    }
+
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(candidates)
+}
+
+/// Remove a list of paths from the directories table.
+/// Called silently during queries to self-heal stale entries.
+fn prune_paths(conn: &Connection, paths: &[String]) -> Result<()> {
+    for path in paths {
+        conn.execute("DELETE FROM directories WHERE path = ?1", [path])?;
+        conn.execute("DELETE FROM sessions WHERE to_path = ?1", [path])?;
+    }
+    Ok(())
+}
+
+/// Query all directories ordered by frecency, pruning dead paths.
+/// Used by the TUI picker and `tp ls` when no query is provided.
+pub fn query_all(conn: &Connection, limit: usize) -> Result<Vec<Candidate>> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+
+    let mut stmt = conn.prepare(
+        "SELECT path, frecency, last_access, access_count, project_root
+         FROM directories
+         ORDER BY frecency DESC
+         LIMIT ?1",
+    )?;
+
+    let rows = stmt.query_map([limit as i64], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, f64>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        ))
+    })?;
+
+    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut dead_paths: Vec<String> = Vec::new();
+
+    for row in rows {
+        let (path, frecency, last_access, access_count, project_root) = row?;
+
+        if !std::path::Path::new(&path).exists() {
+            dead_paths.push(path);
+            continue;
+        }
+
+        let decayed = calculate_frecency(access_count, last_access, now);
+
+        candidates.push(Candidate {
+            path,
+            score: decayed,
+            frecency,
+            last_access,
+            access_count,
+            project_root,
+        });
+    }
+
+    if !dead_paths.is_empty() {
+        prune_paths(conn, &dead_paths)?;
     }
 
     candidates.sort_by(|a, b| {
@@ -214,12 +296,18 @@ mod tests {
     #[test]
     fn test_query_frecency() {
         let conn = db::open_memory().unwrap();
-        record_visit(&conn, "/home/user/projects/api", None).unwrap();
-        record_visit(&conn, "/home/user/projects/web", None).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let api_dir = tmp.path().join("api");
+        let web_dir = tmp.path().join("web");
+        std::fs::create_dir(&api_dir).unwrap();
+        std::fs::create_dir(&web_dir).unwrap();
+
+        record_visit(&conn, api_dir.to_str().unwrap(), None).unwrap();
+        record_visit(&conn, web_dir.to_str().unwrap(), None).unwrap();
 
         let results = query_frecency(&conn, "api", None).unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].path, "/home/user/projects/api");
+        assert_eq!(results[0].path, api_dir.to_str().unwrap());
     }
 
     #[test]

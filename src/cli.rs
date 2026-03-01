@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
+
+use rusqlite::Connection;
 
 use crate::db;
 use crate::import;
@@ -46,6 +49,10 @@ pub struct Cli {
     #[arg(long = "recall")]
     pub recall: bool,
 
+    /// Output completion candidates for the given prefix (used by shell completion scripts)
+    #[arg(long = "complete", hide = true)]
+    pub complete: Option<String>,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -80,6 +87,107 @@ pub enum Commands {
 
     /// Cloud sync (Pro feature, stub)
     Sync,
+
+    /// List top directories by frecency score
+    #[command(name = "ls", alias = "list")]
+    Ls {
+        /// Number of entries to show (default: 20)
+        #[arg(short = 'n', long, default_value = "20")]
+        count: usize,
+    },
+
+    /// Jump back in navigation history
+    Back {
+        /// How many steps back (default: 1)
+        #[arg(default_value = "1")]
+        steps: usize,
+    },
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: Shell,
+    },
+}
+
+/// Print dynamic completion candidates for the given prefix.
+/// Outputs waypoint names (prefixed with !) and top directory basenames.
+fn print_completions(conn: &Connection, prefix: &str) -> Result<()> {
+    // Waypoint completions for `!` prefix
+    if let Some(wp_prefix) = prefix.strip_prefix('!') {
+        let mut stmt = conn.prepare(
+            "SELECT name FROM waypoints WHERE name LIKE ?1 ORDER BY name LIMIT 20",
+        )?;
+        let pattern = format!("{}%", wp_prefix);
+        let rows = stmt.query_map([&pattern], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            println!("!{}", row?);
+        }
+        return Ok(());
+    }
+
+    // Project completions for `@` prefix
+    if let Some(proj_prefix) = prefix.strip_prefix('@') {
+        let mut stmt = conn.prepare(
+            "SELECT name FROM projects WHERE name LIKE ?1 ORDER BY name LIMIT 20",
+        )?;
+        let pattern = format!("{}%", proj_prefix);
+        let rows = stmt.query_map([&pattern], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            println!("@{}", row?);
+        }
+        return Ok(());
+    }
+
+    // Directory completions — match against last path component
+    let candidates = frecency::query_all(conn, 50)?;
+    let prefix_lower = prefix.to_lowercase();
+    for c in candidates {
+        let basename = c.path.rsplit('/').next().unwrap_or(&c.path);
+        if basename.to_lowercase().starts_with(&prefix_lower) {
+            println!("{}", basename);
+        }
+    }
+
+    Ok(())
+}
+
+/// Navigate back N steps in session history.
+/// Looks at the sessions table for recent from_path entries,
+/// skipping the current directory and deduplicating.
+fn navigate_back(conn: &Connection, steps: usize) -> Result<Option<String>> {
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT from_path FROM sessions
+         WHERE from_path IS NOT NULL AND from_path != ''
+         ORDER BY timestamp DESC
+         LIMIT 100",
+    )?;
+
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut stack: Vec<String> = Vec::new();
+
+    for row in rows {
+        let path = row?;
+        // Skip current directory and duplicates
+        if path == cwd || !seen.insert(path.clone()) {
+            continue;
+        }
+        // Only include paths that still exist
+        if std::path::Path::new(&path).exists() {
+            stack.push(path);
+            if stack.len() >= steps {
+                break;
+            }
+        }
+    }
+
+    Ok(stack.into_iter().last())
 }
 
 /// Entry point: parse CLI args and dispatch to the appropriate handler.
@@ -140,6 +248,42 @@ pub fn run() -> Result<()> {
                 eprintln!("Cloud sync is a Pro feature and is not yet implemented.");
                 Ok(())
             }
+            Commands::Ls { count } => {
+                let conn = db::open()?;
+                let candidates = frecency::query_all(&conn, *count)?;
+                if candidates.is_empty() {
+                    eprintln!("No directories tracked yet. Navigate around to build history.");
+                } else {
+                    for c in &candidates {
+                        let project = c
+                            .project_root
+                            .as_deref()
+                            .and_then(|p| std::path::Path::new(p).file_name())
+                            .map(|n| format!(" [{}]", n.to_string_lossy()))
+                            .unwrap_or_default();
+                        eprintln!("{:>8.1}  {}{}", c.score, c.path, project);
+                    }
+                }
+                Ok(())
+            }
+            Commands::Completions { shell } => {
+                let mut cmd = Cli::command();
+                clap_complete::generate(*shell, &mut cmd, "tp", &mut std::io::stdout());
+                Ok(())
+            }
+            Commands::Back { steps } => {
+                let conn = db::open()?;
+                match navigate_back(&conn, *steps)? {
+                    Some(path) => {
+                        println!("{}", path);
+                        Ok(())
+                    }
+                    None => {
+                        eprintln!("No navigation history to go back to.");
+                        std::process::exit(1);
+                    }
+                }
+            }
         };
     }
 
@@ -192,19 +336,21 @@ pub fn run() -> Result<()> {
         }
     }
 
-    // Main navigation flow
-    if cli.query.is_empty() && !cli.interactive {
-        eprintln!("Usage: tp <query> — teleport to a directory");
-        eprintln!("       tp --help  — show all options");
-        return Ok(());
+    // Dynamic completions — output matching paths/waypoints for shell tab-complete
+    if let Some(ref prefix) = cli.complete {
+        let conn = db::open()?;
+        return print_completions(&conn, prefix);
     }
+
+    // Main navigation flow — bare `tp` with no args launches TUI picker
+    let interactive = cli.interactive || cli.query.is_empty();
 
     let conn = db::open()?;
 
     // Auto-bootstrap on first use — seeds from shell history, zoxide, and project discovery
     crate::bootstrap::auto_bootstrap(&conn)?;
 
-    match crate::nav::navigate(&conn, &cli.query, cli.interactive)? {
+    match crate::nav::navigate(&conn, &cli.query, interactive)? {
         Some(result) => {
             // Print path to stdout — the shell wrapper captures this and does `cd`
             println!("{}", result.path);

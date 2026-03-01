@@ -32,24 +32,9 @@ pub fn navigate(
         return Ok(None);
     }
 
-    // `tp -i` with no query — show the top entries in the TUI picker.
+    // `tp` or `tp -i` with no query — show the top entries in the TUI picker.
     if query.is_empty() && interactive {
-        let mut stmt = conn.prepare(
-            "SELECT path, frecency, last_access, access_count, project_root
-             FROM directories ORDER BY frecency DESC LIMIT 100",
-        )?;
-        let candidates: Vec<frecency::Candidate> = stmt
-            .query_map([], |row| {
-                Ok(frecency::Candidate {
-                    path: row.get(0)?,
-                    score: row.get::<_, f64>(1)?,
-                    frecency: row.get(1)?,
-                    last_access: row.get(2)?,
-                    access_count: row.get(3)?,
-                    project_root: row.get(4)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+        let candidates = frecency::query_all(conn, 100)?;
 
         #[cfg(feature = "tui")]
         {
@@ -235,14 +220,17 @@ mod tests {
     #[test]
     fn test_navigate_frecency() {
         let conn = db::open_memory().unwrap();
-        // Add a directory with high frecency
-        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
-        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
-        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let api_dir = tmp.path().join("api");
+        std::fs::create_dir(&api_dir).unwrap();
+        let api_path = api_dir.to_str().unwrap();
+
+        frecency::record_visit(&conn, api_path, None).unwrap();
+        frecency::record_visit(&conn, api_path, None).unwrap();
+        frecency::record_visit(&conn, api_path, None).unwrap();
 
         let result = navigate(&conn, &["api".to_string()], false).unwrap();
         assert!(result.is_some());
-        // match_type will be "frecency" if score > 0.8
         let mt = &result.unwrap().match_type;
         assert!(mt == "frecency" || mt == "fallback");
     }

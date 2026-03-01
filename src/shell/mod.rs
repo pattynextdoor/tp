@@ -43,6 +43,17 @@ __tp_hook() {{
 if [[ ";${{PROMPT_COMMAND[*]}};" != *";__tp_hook;"* ]]; then
     PROMPT_COMMAND="${{PROMPT_COMMAND:+$PROMPT_COMMAND;}}__tp_hook"
 fi
+
+# Dynamic tab completion
+__{cmd}_completions() {{
+    local cur="${{COMP_WORDS[COMP_CWORD]}}"
+    if [[ "$cur" == !* ]] || [[ "$cur" == @* ]] || [[ -n "$cur" ]]; then
+        COMPREPLY=($(command tp --complete "$cur" 2>/dev/null))
+    else
+        COMPREPLY=($(command tp --complete "" 2>/dev/null))
+    fi
+}}
+complete -F __{cmd}_completions {cmd}
 "#,
         cmd = cmd
     )
@@ -67,6 +78,14 @@ __tp_hook() {{
 }}
 
 [[ -z "${{precmd_functions[(r)__tp_hook]}}" ]] && precmd_functions+=(__tp_hook)
+
+# Dynamic tab completion
+__{cmd}_completions() {{
+    local -a completions
+    completions=(${{(@f)"$(command tp --complete "${{words[CURRENT]}}" 2>/dev/null)"}})
+    compadd -a completions
+}}
+compdef __{cmd}_completions {cmd}
 "#,
         cmd = cmd
     )
@@ -88,6 +107,9 @@ end
 function __tp_hook --on-variable PWD
     command tp add -- "$PWD" &>/dev/null &
 end
+
+# Dynamic tab completion
+complete -c {cmd} -f -a '(command tp --complete (commandline -ct) 2>/dev/null)'
 "#,
         cmd = cmd
     )
