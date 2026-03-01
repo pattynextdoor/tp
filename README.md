@@ -243,23 +243,48 @@ Drop a `.project-root` in any directory to force project root detection, or exte
 
 ## Benchmarks
 
-Measured with [hyperfine](https://github.com/sharkdp/hyperfine) on Linux x86_64, 500 seeded directories, 200+ runs each.
+Measured with [hyperfine](https://github.com/sharkdp/hyperfine) on a MacBook Pro M4 Pro, 200+ runs each. The benchmark suite tests four scenarios to give a fair picture of both tools.
 
-| Operation | tp | zoxide | Δ |
-|-----------|-----|--------|---|
-| **Query (exact match)** | **2.4ms** | 3.1ms | tp 1.3x faster |
-| **Query (fuzzy)** | **2.4ms** | 2.9ms | tp 1.2x faster |
-| **Add (shell hook)** | 6.6ms | **2.5ms** | zoxide 2.7x faster |
+### Core queries (500 entries, flat seeding)
 
-**Reads are the hot path** — you query hundreds of times for every add. tp is faster where it counts.
+Raw query speed with 1 visit per path — the simplest comparison.
 
-The `add` penalty comes from project root detection (walking up the tree for `.git`, `Cargo.toml`, etc.) and session logging. This is the work that enables project-scoped search and session recall — features zoxide doesn't have.
+<p align="center">
+<img src="bench/charts/core.svg" alt="Core benchmarks" width="600" />
+</p>
 
-Run the benchmark yourself:
+### Realistic visit patterns (hot/warm/cold)
+
+300 directories with varied visit counts: 50 "hot" paths (20 visits), 100 "warm" (5 visits), 150 "cold" (1 visit). This exercises frecency ranking under real-world conditions.
+
+<p align="center">
+<img src="bench/charts/varied.svg" alt="Varied visit pattern benchmarks" width="600" />
+</p>
+
+### Stale path handling
+
+200 directories, 40% deleted after seeding. tp checks `Path::exists()` on every candidate and self-heals stale entries — this costs extra I/O but keeps your results clean.
+
+<p align="center">
+<img src="bench/charts/stale.svg" alt="Stale path benchmarks" width="600" />
+</p>
+
+### Scale (5,000 entries)
+
+Does the speed gap hold at scale?
+
+<p align="center">
+<img src="bench/charts/scale.svg" alt="Scale benchmarks" width="600" />
+</p>
+
+> **Note:** tp's `add` does more work than zoxide's — it detects project roots by walking up the tree for `.git`, `Cargo.toml`, etc., and logs session data. This is the cost of project-scoped search and session recall.
+
+Run the benchmarks yourself:
 
 ```sh
 cargo build --release
 ./bench/bench.sh
+python3 bench/chart.py   # generate SVG charts
 ```
 
 ## Architecture
