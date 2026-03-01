@@ -22,21 +22,11 @@ Once configured, AI features activate automatically when needed. You can fine-tu
 
 AI is a **tiebreaker, not a crutch**. The resolution pipeline (described in the [Introduction](./introduction.md#how-it-works)) only reaches the AI reranking step when local frecency scoring produces ambiguous results (roughly 5% of queries). When it does fire, a typical request uses ~150 tokens and completes in under 300ms.
 
-## Capabilities
+## Implemented Features
 
-### Natural Language Navigation
+### AI Reranking
 
-Navigate using descriptive phrases even when no tokens match the path:
-
-```sh
-tp the auth service terraform module
-```
-
-The AI layer resolves intent by considering your project structure, not just string matching.
-
-### Intent-Aware Disambiguation
-
-When frecency scores are tied between candidates, AI considers your current working directory, recent jumps, and active git branch to break the tie intelligently.
+When frecency scores are tied between candidates, AI considers your current working directory and candidate paths to break the tie intelligently. A typical request uses ~150 tokens and completes in under 300ms.
 
 ### Session Recall
 
@@ -48,17 +38,9 @@ tp --recall
 
 This answers the Monday morning question: *"where was I?"*
 
-### Workflow Prediction
+## Coming Soon (Stubbed)
 
-The AI layer spots recurring navigation sequences and nudges you toward the next likely destination. For example, if you frequently go from `src/api` to `tests/api` to `docs/api`, it learns that pattern.
-
-### Smart Aliasing
-
-Based on your project structure, AI suggests memorable waypoint names for directories you visit often. Suggestions are always presented for your confirmation — nothing is auto-applied.
-
-## Upcoming AI Commands
-
-These commands are stubbed and under active development:
+These features are stubbed and under active development:
 
 ### Semantic Project Indexing
 
@@ -72,17 +54,32 @@ Indexes a project by concept, enabling searches like:
 tp the service that handles webhook retries
 ```
 
-### Workflow Analysis
+### Workflow Prediction
 
 ```sh
 tp analyze
 ```
 
-Extracts navigation patterns and suggests optimizations (e.g., waypoints you should create, projects you frequently switch between).
+Spots recurring navigation sequences and nudges you toward the next likely destination. For example, if you frequently go from `src/api` to `tests/api` to `docs/api`, it learns that pattern and suggests optimizations (e.g., waypoints you should create, projects you frequently switch between).
+
+## Planned
+
+### Natural Language Navigation
+
+Navigate using descriptive phrases even when no tokens match the path:
+
+```sh
+tp the auth service terraform module
+```
+
+The AI layer will resolve intent by considering your project structure, not just string matching.
+
+### Smart Aliasing
+
+Based on your project structure, AI will suggest memorable waypoint names for directories you visit often. Suggestions will always be presented for your confirmation — nothing auto-applied.
 
 ## Privacy
 
 - AI features are **opt-in** via API key configuration
 - No data is sent anywhere unless you set `TP_API_KEY`
 - Queries go directly to the Anthropic API — there is no intermediary server
-- You can disable AI at any time with `TP_AI_ENABLED=false`

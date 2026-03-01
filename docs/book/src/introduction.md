@@ -26,12 +26,12 @@ Existing tools make you choose: fast-but-dumb or precise-but-manual. `tp` refuse
 Free, open source, works entirely offline. No accounts, no cloud, no strings.
 
 - **Frecency scoring** — frequency + recency with time-decay weighting
-- **Multi-token fuzzy matching** — `tp foo bar` matches paths containing both tokens, with typo tolerance
+- **Multi-token fuzzy matching** — `tp foo bar` matches paths containing both tokens
 - **Project awareness** — auto-detection via `.git`, `Cargo.toml`, `package.json`, `go.mod`, and more
 - **Project-scoped search** — `tp -p tests` stays inside your project boundaries
 - **Cross-project switching** — `tp @payments-service` jumps to a known project root
 - **Waypoints** — `tp --mark deploy` pins a directory; `tp !deploy` teleports there instantly
-- **Smart cold start** — bootstraps from shell history, git repos, and existing zoxide/z/autojump databases
+- **Smart cold start** — bootstraps from shell history, git repos, and existing zoxide databases
 - **Built-in TUI picker** — interactive fuzzy finder showing project name, last modified, and git branch
 - **Full `cd` compatibility** — relative paths, `..`, `-`, `~`, absolute paths all just work
 - **6 shells** — bash, zsh, fish, PowerShell, Nushell, Elvish
@@ -81,11 +81,11 @@ The design principle: **AI is a tiebreaker, not a crutch.** Your navigation shou
 
 ## Development Status
 
-`tp` is in **alpha**. Core navigation, frecency scoring, project detection, waypoints, and shell integration are implemented and working. AI features and the TUI picker are stubbed and under active development.
+`tp` is in **beta**. Core navigation, frecency scoring, project detection, waypoints, shell integration, AI reranking, TUI picker, and session recall are all implemented and working.
 
 | Phase | Status | Shipping |
 |-------|--------|----------|
-| **Alpha** | Complete | Core binary: frecency, project detection, waypoints, 6-shell integration, bootstrap, import |
-| **Beta** | In Progress | AI reranking (BYOK), TUI picker, session recall, zoxide import |
-| **v1.0** | Planned | Polished UX, workflow prediction, session recall, VS Code extension |
-| **Pro** | Planned | Cloud sync, team waypoints, onboarding mode, analytics |
+| **Alpha** | Complete | Core binary: frecency, project detection, waypoints, 6-shell integration, bootstrap, zoxide import |
+| **Beta** | Complete | AI reranking (BYOK), TUI picker, session recall, query/remove/doctor commands. 95 tests, CI on 3 platforms. |
+| **v1.0** | Planned | Semantic project indexing, workflow prediction, natural language nav, VS Code extension. |
+| **Pro** | Planned | Cloud sync, team waypoints, onboarding mode, analytics. |

@@ -20,6 +20,16 @@ When dispatching subagents to write Rust code, always instruct them to run all t
 - No `Co-Authored-By` lines in commit messages.
 - Use gitmoji conventional commits (see global CLAUDE.md for the table).
 
+## Keep Docs in Sync
+
+When adding, changing, or removing a feature, **always update the relevant documentation in the same commit or PR**:
+
+- **`README.md`** — usage examples, feature lists, command reference, config table, development status
+- **`docs/book/src/`** — the corresponding mdbook page (usage.md, configuration.md, ai-features.md, etc.)
+- **CLI help text** — clap doc comments on structs/variants in `src/cli.rs`
+
+If a new subcommand, flag, or config variable is added, it must appear in all three places. If a feature is removed or renamed, remove/update all references. Don't leave docs promising things the code doesn't do.
+
 ## Project Structure
 
 - Rust CLI tool using clap (derive mode) + rusqlite (SQLite with WAL)

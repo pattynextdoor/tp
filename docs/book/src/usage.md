@@ -55,7 +55,7 @@ tp query <query>        Print matches (for scripting)
 ```
 tp init <shell>         Shell integration code
 tp init --bootstrap     Bootstrap from history
-tp import --from=<tool> Import from zoxide/z/autojump/fasd
+tp import --from=zoxide Import from zoxide
 ```
 
 ### AI Commands
@@ -72,6 +72,9 @@ tp --setup-ai           Configure API key for AI features
 ### Other
 
 ```
+tp ls [-n COUNT]        List top directories by frecency
+tp back [STEPS]         Jump back in navigation history
+tp completions <shell>  Generate shell completions
 tp sync                 Force cloud sync (Pro)
 tp doctor               Diagnose configuration issues
 ```
@@ -80,6 +83,4 @@ tp doctor               Diagnose configuration issues
 
 `tp` uses project markers to detect project boundaries for project-scoped search (`tp -p`) and cross-project switching (`tp @`). It walks up the directory tree looking for these files:
 
-`.git` `.hg` `.svn` `Cargo.toml` `package.json` `go.mod` `pyproject.toml` `build.gradle` `pom.xml` `Makefile` `CMakeLists.txt` `.project-root` `mix.exs` `deno.json` `flake.nix`
-
-Drop a `.project-root` file in any directory to force project root detection, or extend the list via the `TP_PROJECT_MARKERS` environment variable (see [Configuration](./configuration.md)).
+`.git` `Cargo.toml` `package.json` `go.mod` `pyproject.toml` `setup.py` `Gemfile` `pom.xml` `build.gradle` `CMakeLists.txt` `Makefile` `.project` `composer.json` `mix.exs` `deno.json` `flake.nix`
