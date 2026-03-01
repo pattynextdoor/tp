@@ -129,6 +129,9 @@ pub enum Commands {
         #[arg(short, long)]
         score: bool,
     },
+
+    /// Diagnose configuration issues
+    Doctor,
 }
 
 /// Print dynamic completion candidates for the given prefix.
@@ -338,6 +341,91 @@ pub fn run() -> Result<()> {
                         println!("{}", c.path);
                     }
                 }
+                Ok(())
+            }
+            Commands::Doctor => {
+                eprintln!("tp doctor");
+                eprintln!("=========");
+                eprintln!();
+
+                // Database
+                match db::db_path() {
+                    Ok(p) => {
+                        eprintln!("Database: {}", p.display());
+                        if p.exists() {
+                            let conn = db::open()?;
+                            let dir_count: i64 = conn.query_row(
+                                "SELECT COUNT(*) FROM directories",
+                                [],
+                                |row| row.get(0),
+                            )?;
+                            let wp_count: i64 = conn.query_row(
+                                "SELECT COUNT(*) FROM waypoints",
+                                [],
+                                |row| row.get(0),
+                            )?;
+                            let sess_count: i64 = conn.query_row(
+                                "SELECT COUNT(*) FROM sessions",
+                                [],
+                                |row| row.get(0),
+                            )?;
+                            eprintln!("  Directories: {}", dir_count);
+                            eprintln!("  Waypoints:   {}", wp_count);
+                            eprintln!("  Sessions:    {}", sess_count);
+                        } else {
+                            eprintln!(
+                                "  (not created yet — navigate once to initialize)"
+                            );
+                        }
+                    }
+                    Err(e) => eprintln!("Database: ERROR — {}", e),
+                }
+                eprintln!();
+
+                // Features
+                eprintln!("Features:");
+                if cfg!(feature = "ai") {
+                    eprintln!("  AI:  enabled");
+                } else {
+                    eprintln!("  AI:  disabled (rebuild with --features ai)");
+                }
+                if cfg!(feature = "tui") {
+                    eprintln!("  TUI: enabled");
+                } else {
+                    eprintln!("  TUI: disabled (rebuild with --features tui)");
+                }
+                eprintln!();
+
+                // AI key
+                eprintln!("AI Configuration:");
+                #[cfg(feature = "ai")]
+                {
+                    match crate::ai::detect_api_key() {
+                        Some((_key, source)) => {
+                            eprintln!("  API key: found in {}", source)
+                        }
+                        None => eprintln!("  API key: not set (run tp --setup-ai)"),
+                    }
+                }
+                #[cfg(not(feature = "ai"))]
+                {
+                    eprintln!("  (AI feature not compiled)");
+                }
+                eprintln!();
+
+                // Shell
+                eprintln!("Environment:");
+                eprintln!(
+                    "  SHELL:    {}",
+                    std::env::var("SHELL").unwrap_or_else(|_| "(not set)".into())
+                );
+                if let Ok(dir) = std::env::var("TP_DATA_DIR") {
+                    eprintln!("  TP_DATA_DIR: {}", dir);
+                }
+                if let Ok(exclude) = std::env::var("TP_EXCLUDE_DIRS") {
+                    eprintln!("  TP_EXCLUDE_DIRS: {}", exclude);
+                }
+
                 Ok(())
             }
         };
