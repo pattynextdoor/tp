@@ -191,11 +191,12 @@ fn extract_cd_target(line: &str, home: &Path) -> Option<String> {
         return None;
     }
 
-    // Expand ~ to home directory
+    // Expand ~ to home directory (use string concat to preserve forward slashes cross-platform)
+    let home_str = home.to_string_lossy();
     let expanded = if let Some(rest) = target.strip_prefix("~/") {
-        home.join(rest).to_string_lossy().to_string()
+        format!("{}/{}", home_str.trim_end_matches('/'), rest)
     } else if target == "~" {
-        home.to_string_lossy().to_string()
+        home_str.to_string()
     } else if target.starts_with('/') {
         target.to_string()
     } else {
