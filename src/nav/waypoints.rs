@@ -61,10 +61,11 @@ pub fn jump_to_waypoint(conn: &Connection, name: &str) -> Result<()> {
 /// Internal: resolve a waypoint name to a path string.
 pub fn resolve_waypoint(conn: &Connection, name: &str) -> Result<Option<String>> {
     let mut stmt = conn.prepare("SELECT path FROM waypoints WHERE name = ?1")?;
-    let result = stmt
-        .query_row([name], |row| row.get::<_, String>(0))
-        .ok();
-    Ok(result)
+    match stmt.query_row([name], |row| row.get::<_, String>(0)) {
+        Ok(path) => Ok(Some(path)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(test)]

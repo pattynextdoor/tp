@@ -43,11 +43,13 @@ pub fn record_visit(
     path: &str,
     project_root: Option<&str>,
 ) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
+
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs() as i64;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO directories (path, frecency, last_access, access_count, project_root)
          VALUES (?1, 1.0, ?2, 1, ?3)
          ON CONFLICT(path) DO UPDATE SET
@@ -58,21 +60,22 @@ pub fn record_visit(
         rusqlite::params![path, now, project_root],
     )?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
         [path],
     )?;
 
-    let total: f64 = conn.query_row(
+    let total: f64 = tx.query_row(
         "SELECT COALESCE(SUM(frecency), 0.0) FROM directories",
         [],
         |row| row.get(0),
     )?;
 
     if total > 10_000.0 {
-        age_scores(conn, now)?;
+        age_scores(&tx, now)?;
     }
 
+    tx.commit()?;
     Ok(())
 }
 
@@ -82,16 +85,17 @@ pub fn record_visit(
 fn age_scores(conn: &Connection, now: i64) -> Result<()> {
     let thirty_days_ago = now - 30 * 86400;
 
-    let mut stmt =
-        conn.prepare("SELECT id, access_count, last_access FROM directories")?;
-    let rows: Vec<(i64, i64, i64)> = stmt
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .unwrap()
-        .filter_map(|r| r.ok())
-        .collect();
+    let rows: Vec<(i64, i64, i64)> = {
+        let mut stmt =
+            conn.prepare("SELECT id, access_count, last_access FROM directories")?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
 
-    for (id, count, last) in &rows {
-        let new_score = calculate_frecency(*count, *last, now);
+    for (id, count, last) in rows {
+        let new_score = calculate_frecency(count, last, now);
         conn.execute(
             "UPDATE directories SET frecency = ?1 WHERE id = ?2",
             rusqlite::params![new_score, id],

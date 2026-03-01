@@ -102,10 +102,11 @@ pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>
 /// Look up a project by name from the projects table.
 fn resolve_project(conn: &Connection, name: &str) -> Result<Option<String>> {
     let mut stmt = conn.prepare("SELECT path FROM projects WHERE name = ?1 LIMIT 1")?;
-    let result = stmt
-        .query_row([name], |row| row.get::<_, String>(0))
-        .ok();
-    Ok(result)
+    match stmt.query_row([name], |row| row.get::<_, String>(0)) {
+        Ok(path) => Ok(Some(path)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
 }
 
 #[cfg(test)]
