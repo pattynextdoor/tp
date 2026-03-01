@@ -8,6 +8,7 @@ use rusqlite::Connection;
 /// The result of a navigation query — a path to cd into.
 pub struct NavResult {
     pub path: String,
+    #[allow(dead_code)]
     pub match_type: String,
 }
 

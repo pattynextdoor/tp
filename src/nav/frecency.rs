@@ -5,6 +5,7 @@ use super::matching;
 
 /// A candidate directory returned from a frecency query.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Candidate {
     pub path: String,
     pub score: f64,

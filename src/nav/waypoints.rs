@@ -48,6 +48,7 @@ pub fn remove_waypoint(conn: &Connection, name: &str) -> Result<()> {
 }
 
 /// Resolve a waypoint name to its path and print to stdout (for shell wrapper cd).
+#[allow(dead_code)]
 pub fn jump_to_waypoint(conn: &Connection, name: &str) -> Result<()> {
     match resolve_waypoint(conn, name)? {
         Some(p) => {

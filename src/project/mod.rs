@@ -44,6 +44,7 @@ pub fn detect_project_root(path: &str) -> Option<String> {
 }
 
 /// Derive the project name from the root directory name.
+#[allow(dead_code)]
 pub fn project_name(root: &str) -> String {
     std::path::Path::new(root)
         .file_name()
@@ -52,6 +53,7 @@ pub fn project_name(root: &str) -> String {
 }
 
 /// Detect the project type from which marker file was found at the root.
+#[allow(dead_code)]
 pub fn project_kind(root: &str) -> Option<&'static str> {
     let root_path = std::path::Path::new(root);
     for (marker, kind) in PROJECT_MARKERS {

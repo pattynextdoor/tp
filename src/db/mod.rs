@@ -37,6 +37,7 @@ pub fn open_at(path: impl AsRef<std::path::Path>) -> Result<Connection> {
 }
 
 /// Opens an in-memory database — used for unit tests.
+#[allow(dead_code)]
 pub fn open_memory() -> Result<Connection> {
     let conn = Connection::open_in_memory()?;
     configure(&conn)?;
