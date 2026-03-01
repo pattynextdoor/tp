@@ -11,9 +11,175 @@ pub struct NavResult {
     pub match_type: String,
 }
 
-/// Navigate to a directory matching the query.
+/// The 6-step navigation cascade.
 ///
-/// Stub: the full 6-step cascade is implemented in module 8.
-pub fn navigate(_conn: &Connection, _query: &[String]) -> Result<Option<NavResult>> {
+/// 1. Literal path → pass through (if it's a directory)
+/// 2. `!name` → waypoint lookup
+/// 3. `@project` → project root jump
+/// 4. Frecency + fuzzy → if top score >0.8, navigate immediately
+/// 5. AI reranking (stub — skipped for now)
+/// 6. TUI picker or best guess fallback
+pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>> {
+    if query.is_empty() {
+        return Ok(None);
+    }
+
+    let joined = query.join(" ");
+
+    // Step 1: Literal path — if query looks like a filesystem path, pass through
+    if matching::is_literal_path(&joined) {
+        let expanded = shellexpand::tilde(&joined).to_string();
+        let path = std::path::Path::new(&expanded);
+        if path.is_dir() {
+            return Ok(Some(NavResult {
+                path: path
+                    .canonicalize()
+                    .unwrap_or_else(|_| path.to_path_buf())
+                    .to_string_lossy()
+                    .to_string(),
+                match_type: "literal".to_string(),
+            }));
+        }
+    }
+
+    // Step 2: Waypoint lookup — query starts with !
+    if let Some(name) = joined.strip_prefix('!') {
+        let name = name.trim();
+        if !name.is_empty() {
+            if let Some(path) = waypoints::resolve_waypoint(conn, name)? {
+                return Ok(Some(NavResult {
+                    path,
+                    match_type: "waypoint".to_string(),
+                }));
+            }
+        }
+    }
+
+    // Step 3: Project root jump — query starts with @
+    if let Some(name) = joined.strip_prefix('@') {
+        let name = name.trim();
+        if !name.is_empty() {
+            if let Some(path) = resolve_project(conn, name)? {
+                return Ok(Some(NavResult {
+                    path,
+                    match_type: "project".to_string(),
+                }));
+            }
+        }
+    }
+
+    // Step 4: Frecency + fuzzy matching
+    let cwd = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.to_str().map(|s| s.to_string()));
+    let project_scope = cwd
+        .as_deref()
+        .and_then(|c| crate::project::detect_project_root(c));
+    let candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
+
+    if let Some(best) = candidates.first() {
+        if best.score > 0.8 {
+            return Ok(Some(NavResult {
+                path: best.path.clone(),
+                match_type: "frecency".to_string(),
+            }));
+        }
+    }
+
+    // Step 5: AI reranking — stub, skip for now
+
+    // Step 6: TUI picker or best guess fallback
+    if let Some(best) = candidates.first() {
+        return Ok(Some(NavResult {
+            path: best.path.clone(),
+            match_type: "fallback".to_string(),
+        }));
+    }
+
     Ok(None)
+}
+
+/// Look up a project by name from the projects table.
+fn resolve_project(conn: &Connection, name: &str) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT path FROM projects WHERE name = ?1 LIMIT 1")?;
+    let result = stmt
+        .query_row([name], |row| row.get::<_, String>(0))
+        .ok();
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+
+    #[test]
+    fn test_navigate_empty_query() {
+        let conn = db::open_memory().unwrap();
+        let result = navigate(&conn, &[]).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_navigate_literal_path() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        let result = navigate(&conn, &[path]).unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.as_ref().unwrap().match_type, "literal");
+    }
+
+    #[test]
+    fn test_navigate_waypoint() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_str().unwrap();
+
+        waypoints::add_waypoint(&conn, "test", dir).unwrap();
+
+        let result = navigate(&conn, &["!test".to_string()]).unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.as_ref().unwrap().match_type, "waypoint");
+    }
+
+    #[test]
+    fn test_navigate_project() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_str().unwrap();
+
+        conn.execute(
+            "INSERT INTO projects (path, name) VALUES (?1, ?2)",
+            rusqlite::params![dir, "myproject"],
+        )
+        .unwrap();
+
+        let result = navigate(&conn, &["@myproject".to_string()]).unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.as_ref().unwrap().match_type, "project");
+    }
+
+    #[test]
+    fn test_navigate_frecency() {
+        let conn = db::open_memory().unwrap();
+        // Add a directory with high frecency
+        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
+        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
+        frecency::record_visit(&conn, "/home/user/projects/api", None).unwrap();
+
+        let result = navigate(&conn, &["api".to_string()]).unwrap();
+        assert!(result.is_some());
+        // match_type will be "frecency" if score > 0.8
+        let mt = &result.unwrap().match_type;
+        assert!(mt == "frecency" || mt == "fallback");
+    }
+
+    #[test]
+    fn test_navigate_no_match() {
+        let conn = db::open_memory().unwrap();
+        let result = navigate(&conn, &["nonexistent_xyz_123".to_string()]).unwrap();
+        assert!(result.is_none());
+    }
 }
