@@ -1,13 +1,15 @@
 /// Detect whether a query string is a literal filesystem path.
 ///
 /// Returns true for `.`, `..`, `-`, `~`, `/foo`, `./foo`, `../foo`,
-/// and any string starting with `~/`.
+/// any string starting with `~/`, or any bare name that exists as a
+/// directory relative to the current working directory (e.g. `src`).
 pub fn is_literal_path(query: &str) -> bool {
     matches!(query, "." | ".." | "-" | "~")
         || query.starts_with('/')
         || query.starts_with("./")
         || query.starts_with("../")
         || query.starts_with("~/")
+        || std::path::Path::new(query).is_dir()
 }
 
 /// Score how well a query matches a given path.
@@ -95,8 +97,21 @@ mod tests {
     fn test_not_literal() {
         assert!(!is_literal_path("api"));
         assert!(!is_literal_path("my project"));
-        assert!(!is_literal_path("src"));
-        assert!(!is_literal_path("foo/bar")); // no leading ./ or /
+        assert!(!is_literal_path("nonexistent_dir_xyz_123"));
+    }
+
+    #[test]
+    fn test_literal_existing_relative_dir() {
+        // A bare name that exists as a directory should be treated as literal
+        let tmp = tempfile::tempdir().unwrap();
+        let subdir = tmp.path().join("mydir");
+        std::fs::create_dir(&subdir).unwrap();
+
+        // Change to the temp dir so "mydir" resolves relatively
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+        assert!(is_literal_path("mydir"));
+        std::env::set_current_dir(original).unwrap();
     }
 
     // --- fuzzy_score tests ---
