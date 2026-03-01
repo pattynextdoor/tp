@@ -200,6 +200,10 @@ pub fn run() -> Result<()> {
     }
 
     let conn = db::open()?;
+
+    // Auto-bootstrap on first use — seeds from shell history, zoxide, and project discovery
+    crate::bootstrap::auto_bootstrap(&conn)?;
+
     match crate::nav::navigate(&conn, &cli.query, cli.interactive)? {
         Some(result) => {
             // Print path to stdout — the shell wrapper captures this and does `cd`

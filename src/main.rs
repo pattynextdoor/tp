@@ -1,3 +1,4 @@
+mod bootstrap;
 mod cli;
 mod db;
 mod import;

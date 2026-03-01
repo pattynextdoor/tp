@@ -36,7 +36,7 @@ tp !deploy                 # teleport to a pinned waypoint
 tp -i                      # interactive fuzzy picker
 ```
 
-That's it. No config files, no setup wizards, no accounts.
+**tp is useful from the first command.** On first run, it automatically indexes your shell history, imports from zoxide (if installed), and discovers projects under your home directory. No cold start, no manual setup.
 
 ---
 
@@ -169,16 +169,20 @@ eval "$(tp init bash --cmd j)"
 
 ### Bootstrap
 
-Don't start from zero. Pull in your existing navigation history:
+**tp auto-bootstraps on first run.** The first time you navigate with an empty database, tp silently:
+
+1. Imports your zoxide database (if zoxide is installed)
+2. Parses your shell history (`~/.zsh_history`, `~/.bash_history`, fish history) for `cd` targets
+3. Scans common code directories (`~/code`, `~/projects`, `~/repos`, etc.) for project roots
+
+This takes <500ms and means your first `tp` command already has context.
+
+You can also trigger it manually or import from a specific source:
 
 ```sh
-tp init --bootstrap
-```
-
-Already a zoxide user? Bring your muscle memory with you:
-
-```sh
-tp import --from=zoxide ~/.local/share/zoxide/db.zo
+tp init --bootstrap                                    # re-run auto-discovery
+tp import --from=zoxide                                # import from zoxide
+tp import --from=zoxide ~/.local/share/zoxide/db.zo    # import from file
 ```
 
 ## Usage Reference
