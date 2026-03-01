@@ -548,7 +548,7 @@ pub fn run() -> Result<()> {
     // Auto-bootstrap on first use — seeds from shell history, zoxide, and project discovery
     crate::bootstrap::auto_bootstrap(&conn)?;
 
-    match crate::nav::navigate(&conn, &cli.query, interactive)? {
+    match crate::nav::navigate(&conn, &cli.query, interactive, cli.project_scoped)? {
         Some(result) => {
             // Print path to stdout — the shell wrapper captures this and does `cd`
             println!("{}", result.path);

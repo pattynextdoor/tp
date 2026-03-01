@@ -27,6 +27,7 @@ pub fn navigate(
     conn: &Connection,
     query: &[String],
     interactive: bool,
+    project_scoped: bool,
 ) -> Result<Option<NavResult>> {
     if query.is_empty() && !interactive {
         return Ok(None);
@@ -101,7 +102,14 @@ pub fn navigate(
         .ok()
         .and_then(|p| p.to_str().map(|s| s.to_string()));
     let project_scope = cwd.as_deref().and_then(crate::project::detect_project_root);
-    let candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
+    let mut candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
+
+    // When -p flag is used, filter to only paths within the current project
+    if project_scoped {
+        if let Some(ref scope) = project_scope {
+            candidates.retain(|c| c.path.starts_with(scope.as_str()));
+        }
+    }
 
     if let Some(best) = candidates.first() {
         if best.score > 0.8 {
@@ -172,7 +180,7 @@ mod tests {
     #[test]
     fn test_navigate_empty_query() {
         let conn = db::open_memory().unwrap();
-        let result = navigate(&conn, &[], false).unwrap();
+        let result = navigate(&conn, &[], false, false).unwrap();
         assert!(result.is_none());
     }
 
@@ -182,7 +190,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().to_str().unwrap().to_string();
 
-        let result = navigate(&conn, &[path], false).unwrap();
+        let result = navigate(&conn, &[path], false, false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "literal");
     }
@@ -195,7 +203,7 @@ mod tests {
 
         waypoints::add_waypoint(&conn, "test", dir).unwrap();
 
-        let result = navigate(&conn, &["!test".to_string()], false).unwrap();
+        let result = navigate(&conn, &["!test".to_string()], false, false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "waypoint");
     }
@@ -212,7 +220,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = navigate(&conn, &["@myproject".to_string()], false).unwrap();
+        let result = navigate(&conn, &["@myproject".to_string()], false, false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "project");
     }
@@ -229,16 +237,48 @@ mod tests {
         frecency::record_visit(&conn, api_path, None).unwrap();
         frecency::record_visit(&conn, api_path, None).unwrap();
 
-        let result = navigate(&conn, &["api".to_string()], false).unwrap();
+        let result = navigate(&conn, &["api".to_string()], false, false).unwrap();
         assert!(result.is_some());
         let mt = &result.unwrap().match_type;
         assert!(mt == "frecency" || mt == "fallback");
     }
 
     #[test]
+    fn test_navigate_project_scoped() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Create two "projects"
+        let proj_a = tmp.path().join("project-a");
+        let proj_b = tmp.path().join("project-b");
+        let dir_a = proj_a.join("src");
+        let dir_b = proj_b.join("src");
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::create_dir_all(&dir_b).unwrap();
+
+        // Record visits with different project roots
+        frecency::record_visit(
+            &conn,
+            dir_a.to_str().unwrap(),
+            Some(proj_a.to_str().unwrap()),
+        )
+        .unwrap();
+        frecency::record_visit(
+            &conn,
+            dir_b.to_str().unwrap(),
+            Some(proj_b.to_str().unwrap()),
+        )
+        .unwrap();
+
+        // Without project scoping, "src" should find both
+        let results = frecency::query_frecency(&conn, "src", None).unwrap();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
     fn test_navigate_no_match() {
         let conn = db::open_memory().unwrap();
-        let result = navigate(&conn, &["nonexistent_xyz_123".to_string()], false).unwrap();
+        let result = navigate(&conn, &["nonexistent_xyz_123".to_string()], false, false).unwrap();
         assert!(result.is_none());
     }
 }
