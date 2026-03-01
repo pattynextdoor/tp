@@ -132,6 +132,15 @@ pub enum Commands {
 
     /// Diagnose configuration issues
     Doctor,
+
+    /// AI: build a semantic index of a project (coming soon)
+    Index {
+        /// Path to the project to index (defaults to current directory)
+        path: Option<String>,
+    },
+
+    /// AI: extract workflow patterns from navigation history (coming soon)
+    Analyze,
 }
 
 /// Print dynamic completion candidates for the given prefix.
@@ -426,6 +435,68 @@ pub fn run() -> Result<()> {
                     eprintln!("  TP_EXCLUDE_DIRS: {}", exclude);
                 }
 
+                Ok(())
+            }
+            Commands::Index { path } => {
+                let target = path.as_deref().unwrap_or(".");
+                let abs = std::fs::canonicalize(target)
+                    .unwrap_or_else(|_| std::path::PathBuf::from(target));
+                eprintln!("tp index: semantic project indexing");
+                eprintln!("  Target: {}", abs.display());
+
+                #[cfg(feature = "ai")]
+                {
+                    match crate::ai::detect_api_key() {
+                        Some(_) => {
+                            eprintln!();
+                            eprintln!("Semantic indexing is coming in a future release.");
+                            eprintln!("This will let you search by concept:");
+                            eprintln!(
+                                "  tp the service that handles webhook retries"
+                            );
+                        }
+                        None => {
+                            eprintln!();
+                            eprintln!("Requires an API key. Run: tp --setup-ai");
+                        }
+                    }
+                }
+                #[cfg(not(feature = "ai"))]
+                {
+                    eprintln!(
+                        "AI features are not enabled. Rebuild with --features ai"
+                    );
+                }
+                Ok(())
+            }
+            Commands::Analyze => {
+                eprintln!("tp analyze: workflow pattern extraction");
+
+                #[cfg(feature = "ai")]
+                {
+                    match crate::ai::detect_api_key() {
+                        Some(_) => {
+                            eprintln!();
+                            eprintln!(
+                                "Workflow analysis is coming in a future release."
+                            );
+                            eprintln!("This will identify navigation patterns like:");
+                            eprintln!(
+                                "  \"After visiting auth/, you usually go to tests/auth/\""
+                            );
+                        }
+                        None => {
+                            eprintln!();
+                            eprintln!("Requires an API key. Run: tp --setup-ai");
+                        }
+                    }
+                }
+                #[cfg(not(feature = "ai"))]
+                {
+                    eprintln!(
+                        "AI features are not enabled. Rebuild with --features ai"
+                    );
+                }
                 Ok(())
             }
         };
