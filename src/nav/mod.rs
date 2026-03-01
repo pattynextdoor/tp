@@ -17,7 +17,7 @@ pub struct NavResult {
 /// 2. `!name` → waypoint lookup
 /// 3. `@project` → project root jump
 /// 4. Frecency + fuzzy → if top score >0.8, navigate immediately
-/// 5. AI reranking (stub — skipped for now)
+/// 5. AI reranking — if top scores are close, ask AI to break the tie
 /// 6. TUI picker or best guess fallback
 pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>> {
     if query.is_empty() {
@@ -86,7 +86,23 @@ pub fn navigate(conn: &Connection, query: &[String]) -> Result<Option<NavResult>
         }
     }
 
-    // Step 5: AI reranking — stub, skip for now
+    // Step 5: AI reranking — if top scores are close, ask AI to break the tie
+    #[cfg(feature = "ai")]
+    {
+        if candidates.len() >= 2 {
+            let top = candidates[0].score;
+            let second = candidates[1].score;
+            // Trigger AI only when scores are within 20% of each other
+            if top > 0.0 && (top - second) / top < 0.2 {
+                if let Some(path) = crate::ai::rerank(&joined, &candidates) {
+                    return Ok(Some(NavResult {
+                        path,
+                        match_type: "ai".to_string(),
+                    }));
+                }
+            }
+        }
+    }
 
     // Step 6: TUI picker or best guess fallback
     if let Some(best) = candidates.first() {
