@@ -1,9 +1,15 @@
+mod cli;
 mod db;
 mod nav;
 mod project;
 mod shell;
 
-fn main() {
-    eprintln!("tp — teleport anywhere in your codebase");
-    eprintln!("Run `tp --help` for usage.");
+#[cfg(feature = "ai")]
+mod ai;
+
+#[cfg(feature = "tui")]
+mod tui;
+
+fn main() -> anyhow::Result<()> {
+    cli::run()
 }
