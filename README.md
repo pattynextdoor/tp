@@ -8,7 +8,7 @@
 
 [![Rust](https://img.shields.io/badge/Built_with-Rust-dea584?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
-[![Alpha](https://img.shields.io/badge/Status-Alpha-orange?style=flat-square)](#development-status)
+[![Alpha](https://img.shields.io/badge/Status-Beta-yellow?style=flat-square)](#development-status)
 
 </p>
 
@@ -237,6 +237,27 @@ All via environment variables. Sane defaults, every knob exposed.
 
 Drop a `.project-root` in any directory to force project root detection, or extend the list via `TP_PROJECT_MARKERS`.
 
+## Benchmarks
+
+Measured with [hyperfine](https://github.com/sharkdp/hyperfine) on Linux x86_64, 500 seeded directories, 200+ runs each.
+
+| Operation | tp | zoxide | Δ |
+|-----------|-----|--------|---|
+| **Query (exact match)** | **2.4ms** | 3.1ms | tp 1.3x faster |
+| **Query (fuzzy)** | **2.4ms** | 2.9ms | tp 1.2x faster |
+| **Add (shell hook)** | 6.6ms | **2.5ms** | zoxide 2.7x faster |
+
+**Reads are the hot path** — you query hundreds of times for every add. tp is faster where it counts.
+
+The `add` penalty comes from project root detection (walking up the tree for `.git`, `Cargo.toml`, etc.) and session logging. This is the work that enables project-scoped search and session recall — features zoxide doesn't have.
+
+Run the benchmark yourself:
+
+```sh
+cargo build --release
+./bench/bench.sh
+```
+
 ## Architecture
 
 ```
@@ -273,8 +294,8 @@ Drop a `.project-root` in any directory to force project root detection, or exte
 
 | Phase | Status | Shipping |
 |-------|--------|----------|
-| **Alpha** | **In Progress** | Core binary: frecency, project detection, waypoints, 6-shell integration, bootstrap, import |
-| **Beta** | Planned | AI integration (BYOK): NL nav, semantic reranking, disambiguation. Neovim plugin. Tab completion. |
+| **Alpha** | ✅ Complete | Core binary: frecency, project detection, waypoints, 6-shell integration, bootstrap, import |
+| **Beta** | **In Progress** | AI reranking (BYOK), TUI picker, session recall, zoxide import. 80 tests, CI on 3 platforms. |
 | **v1.0** | Planned | Polished UX, workflow prediction, session recall, VS Code extension. |
 | **Pro** | Planned | Cloud sync, team waypoints, onboarding mode, analytics. |
 
