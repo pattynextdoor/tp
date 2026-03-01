@@ -19,8 +19,7 @@ thiserror = "1"
 # Feature-gated
 ratatui = { version = "0.28", optional = true }
 crossterm = { version = "0.28", optional = true }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false, optional = true }
-tokio = { version = "1", features = ["rt", "macros"], optional = true }
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false, optional = true }
 
 [dev-dependencies]
 tempfile = "3"
@@ -28,4 +27,4 @@ tempfile = "3"
 [features]
 default = ["tui", "ai"]
 tui = ["dep:ratatui", "dep:crossterm"]
-ai = ["dep:reqwest", "dep:tokio"]
+ai = ["dep:reqwest"]
