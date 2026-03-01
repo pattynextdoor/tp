@@ -112,6 +112,17 @@ pub enum Commands {
         /// Shell to generate completions for
         shell: Shell,
     },
+
+    /// Print matching directories (for scripting)
+    Query {
+        /// Search terms
+        #[arg(required = true)]
+        terms: Vec<String>,
+
+        /// Show scores alongside paths
+        #[arg(short, long)]
+        score: bool,
+    },
 }
 
 /// Print dynamic completion candidates for the given prefix.
@@ -296,6 +307,22 @@ pub fn run() -> Result<()> {
                         std::process::exit(1);
                     }
                 }
+            }
+            Commands::Query { terms, score } => {
+                let conn = db::open()?;
+                let joined = terms.join(" ");
+                let candidates = frecency::query_frecency(&conn, &joined, None)?;
+                if candidates.is_empty() {
+                    std::process::exit(1);
+                }
+                for c in &candidates {
+                    if *score {
+                        println!("{:>8.1}  {}", c.score, c.path);
+                    } else {
+                        println!("{}", c.path);
+                    }
+                }
+                Ok(())
             }
         };
     }
