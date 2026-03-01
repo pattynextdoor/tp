@@ -160,7 +160,10 @@ mod tests {
 
         let key_a = make_key("proj", &refs);
         let key_b = make_key("docs", &refs);
-        assert_ne!(key_a, key_b, "different queries must produce different keys");
+        assert_ne!(
+            key_a, key_b,
+            "different queries must produce different keys"
+        );
     }
 
     #[test]

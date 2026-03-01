@@ -155,9 +155,7 @@ pub fn run() -> Result<()> {
         let path = if mark_args.len() > 1 {
             mark_args[1].clone()
         } else {
-            std::env::current_dir()?
-                .to_string_lossy()
-                .to_string()
+            std::env::current_dir()?.to_string_lossy().to_string()
         };
         return waypoints::add_waypoint(&conn, name, &path);
     }

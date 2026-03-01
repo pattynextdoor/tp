@@ -21,11 +21,11 @@ pub struct Candidate {
 /// but with our own weight values.
 fn time_weight(elapsed_secs: i64) -> f64 {
     match elapsed_secs {
-        s if s < 300 => 4.0,       // <5 minutes
-        s if s < 3600 => 2.0,      // <1 hour
-        s if s < 86400 => 1.0,     // <1 day
-        s if s < 604800 => 0.5,    // <1 week
-        _ => 0.25,                  // older
+        s if s < 300 => 4.0,    // <5 minutes
+        s if s < 3600 => 2.0,   // <1 hour
+        s if s < 86400 => 1.0,  // <1 day
+        s if s < 604800 => 0.5, // <1 week
+        _ => 0.25,              // older
     }
 }
 
@@ -39,11 +39,7 @@ pub fn calculate_frecency(access_count: i64, last_access: i64, now: i64) -> f64 
 /// Record a visit to a directory. Upserts the directory row,
 /// increments its access count, and logs a session entry.
 /// Triggers aging if total score exceeds 10,000.
-pub fn record_visit(
-    conn: &Connection,
-    path: &str,
-    project_root: Option<&str>,
-) -> Result<()> {
+pub fn record_visit(conn: &Connection, path: &str, project_root: Option<&str>) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
 
     let now = std::time::SystemTime::now()
@@ -87,8 +83,7 @@ fn age_scores(conn: &Connection, now: i64) -> Result<()> {
     let thirty_days_ago = now - 30 * 86400;
 
     let rows: Vec<(i64, i64, i64)> = {
-        let mut stmt =
-            conn.prepare("SELECT id, access_count, last_access FROM directories")?;
+        let mut stmt = conn.prepare("SELECT id, access_count, last_access FROM directories")?;
         let rows = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -168,8 +163,11 @@ pub fn query_frecency(
         });
     }
 
-    candidates
-        .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(candidates)
 }
@@ -181,10 +179,10 @@ mod tests {
 
     #[test]
     fn test_time_weight() {
-        assert_eq!(time_weight(60), 4.0);       // <5min
-        assert_eq!(time_weight(1800), 2.0);     // <1hr
-        assert_eq!(time_weight(43200), 1.0);    // <1day
-        assert_eq!(time_weight(259200), 0.5);   // <1week
+        assert_eq!(time_weight(60), 4.0); // <5min
+        assert_eq!(time_weight(1800), 2.0); // <1hr
+        assert_eq!(time_weight(43200), 1.0); // <1day
+        assert_eq!(time_weight(259200), 0.5); // <1week
         assert_eq!(time_weight(1_000_000), 0.25); // older
     }
 
@@ -249,7 +247,9 @@ mod tests {
         }
 
         let total_before: f64 = conn
-            .query_row("SELECT SUM(frecency) FROM directories", [], |row| row.get(0))
+            .query_row("SELECT SUM(frecency) FROM directories", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert!(total_before > 10_000.0);
 

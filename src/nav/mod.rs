@@ -23,7 +23,11 @@ pub struct NavResult {
 ///
 /// When `interactive` is true the TUI picker is shown for ambiguous
 /// results (or when there is no query at all, listing all entries).
-pub fn navigate(conn: &Connection, query: &[String], interactive: bool) -> Result<Option<NavResult>> {
+pub fn navigate(
+    conn: &Connection,
+    query: &[String],
+    interactive: bool,
+) -> Result<Option<NavResult>> {
     if query.is_empty() && !interactive {
         return Ok(None);
     }
@@ -111,9 +115,7 @@ pub fn navigate(conn: &Connection, query: &[String], interactive: bool) -> Resul
     let cwd = std::env::current_dir()
         .ok()
         .and_then(|p| p.to_str().map(|s| s.to_string()));
-    let project_scope = cwd
-        .as_deref()
-        .and_then(|c| crate::project::detect_project_root(c));
+    let project_scope = cwd.as_deref().and_then(crate::project::detect_project_root);
     let candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
 
     if let Some(best) = candidates.first() {

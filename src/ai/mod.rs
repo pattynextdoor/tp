@@ -100,10 +100,7 @@ fn build_rerank_prompt(
 /// malformed responses, and missing API keys all result in a silent `None`
 /// so that navigation always falls back to the frecency-based ranking.
 #[cfg(feature = "ai")]
-pub fn rerank(
-    query: &str,
-    candidates: &[crate::nav::frecency::Candidate],
-) -> Option<String> {
+pub fn rerank(query: &str, candidates: &[crate::nav::frecency::Candidate]) -> Option<String> {
     // Not enough candidates to justify an API call.
     if candidates.len() < 2 {
         return None;
@@ -116,8 +113,7 @@ pub fn rerank(
         .and_then(|p| p.to_str().map(String::from));
 
     // Only consider the top 10 candidates to keep the prompt small and fast.
-    let top: Vec<&crate::nav::frecency::Candidate> =
-        candidates.iter().take(10).collect();
+    let top: Vec<&crate::nav::frecency::Candidate> = candidates.iter().take(10).collect();
 
     // Check cache first — avoids a network round-trip for repeated queries.
     let cache_key = cache::make_key(query, &top);
@@ -125,14 +121,10 @@ pub fn rerank(
         return Some(cached_path);
     }
 
-    let prompt = build_rerank_prompt(
-        query,
-        &candidates[..top.len()],
-        cwd.as_deref(),
-    );
+    let prompt = build_rerank_prompt(query, &candidates[..top.len()], cwd.as_deref());
 
-    let model = std::env::var("TP_AI_MODEL")
-        .unwrap_or_else(|_| "claude-haiku-4-5-20251001".to_string());
+    let model =
+        std::env::var("TP_AI_MODEL").unwrap_or_else(|_| "claude-haiku-4-5-20251001".to_string());
 
     let timeout_ms: u64 = std::env::var("TP_AI_TIMEOUT")
         .ok()
@@ -176,10 +168,7 @@ pub fn rerank(
 
 /// Fallback when the `ai` feature is disabled: always returns `None`.
 #[cfg(not(feature = "ai"))]
-pub fn rerank(
-    _query: &str,
-    _candidates: &[crate::nav::frecency::Candidate],
-) -> Option<String> {
+pub fn rerank(_query: &str, _candidates: &[crate::nav::frecency::Candidate]) -> Option<String> {
     None
 }
 
@@ -229,7 +218,10 @@ mod tests {
         let c2 = candidate("/home/user/docs");
         let prompt = build_rerank_prompt("api", &[c1, c2], Some("/home/user"));
 
-        assert!(prompt.contains("Query: api"), "prompt must contain the query");
+        assert!(
+            prompt.contains("Query: api"),
+            "prompt must contain the query"
+        );
         assert!(
             prompt.contains("/home/user/projects/api"),
             "prompt must contain candidate paths"

@@ -24,8 +24,8 @@ pub fn list_waypoints(conn: &Connection) -> Result<()> {
 
 /// Create or replace a waypoint. The path is canonicalized to an absolute path.
 pub fn add_waypoint(conn: &Connection, name: &str, path: &str) -> Result<()> {
-    let canonical = std::fs::canonicalize(path)
-        .with_context(|| format!("could not resolve path: {}", path))?;
+    let canonical =
+        std::fs::canonicalize(path).with_context(|| format!("could not resolve path: {}", path))?;
     let path_str = canonical.to_string_lossy();
 
     conn.execute(

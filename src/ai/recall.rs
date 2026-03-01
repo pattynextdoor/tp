@@ -50,10 +50,7 @@ pub fn gather_session_stats(conn: &Connection) -> Result<Vec<SessionStat>> {
 fn format_stats_for_ai(stats: &[SessionStat]) -> String {
     let mut out = String::new();
     for stat in stats {
-        let project = stat
-            .project_root
-            .as_deref()
-            .unwrap_or("(no project)");
+        let project = stat.project_root.as_deref().unwrap_or("(no project)");
         out.push_str(&format!(
             "- {} (visits: {}, project: {})\n",
             stat.path, stat.visit_count, project
@@ -67,8 +64,8 @@ fn format_stats_for_ai(stats: &[SessionStat]) -> String {
 /// the caller can fall back to raw stats output.
 #[cfg(feature = "ai")]
 fn call_ai_summary(api_key: &str, stats_text: &str) -> Option<String> {
-    let model = std::env::var("TP_AI_MODEL")
-        .unwrap_or_else(|_| "claude-haiku-4-5-20251001".to_string());
+    let model =
+        std::env::var("TP_AI_MODEL").unwrap_or_else(|_| "claude-haiku-4-5-20251001".to_string());
 
     let body = serde_json::json!({
         "model": model,
@@ -193,7 +190,12 @@ mod tests {
         let stats = gather_session_stats(&conn).unwrap();
 
         // Should have two distinct paths.
-        assert_eq!(stats.len(), 2, "expected 2 distinct paths, got {}", stats.len());
+        assert_eq!(
+            stats.len(),
+            2,
+            "expected 2 distinct paths, got {}",
+            stats.len()
+        );
 
         // Most visited first.
         assert_eq!(stats[0].path, "/home/user/projects/a");

@@ -243,15 +243,15 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // input area
-            Constraint::Min(1),   // candidate list
+            Constraint::Min(1),    // candidate list
             Constraint::Length(1), // status bar
         ])
         .split(f.area());
 
     // --- Input area ---
     let input_text = format!("> {}", app.input);
-    let input_paragraph = Paragraph::new(input_text)
-        .block(Block::default().borders(Borders::ALL).title(" tp "));
+    let input_paragraph =
+        Paragraph::new(input_text).block(Block::default().borders(Borders::ALL).title(" tp "));
     f.render_widget(input_paragraph, chunks[0]);
 
     // --- Candidate list ---
@@ -301,7 +301,11 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
 
     // --- Status bar ---
     let status = Paragraph::new(Line::from(Span::styled(
-        format!("{}/{} matches", app.filtered.len(), app.all_candidates.len()),
+        format!(
+            "{}/{} matches",
+            app.filtered.len(),
+            app.all_candidates.len()
+        ),
         Style::default().fg(Color::DarkGray),
     )));
     f.render_widget(status, chunks[2]);
@@ -355,15 +359,15 @@ mod tests {
         app.input = "api".to_string();
         app.apply_filter();
         assert_eq!(app.filtered.len(), 1);
-        assert_eq!(app.selected_path(), Some("/home/user/projects/api".to_string()));
+        assert_eq!(
+            app.selected_path(),
+            Some("/home/user/projects/api".to_string())
+        );
     }
 
     #[test]
     fn test_app_navigation() {
-        let candidates = vec![
-            make_candidate("/first", 0),
-            make_candidate("/second", 0),
-        ];
+        let candidates = vec![make_candidate("/first", 0), make_candidate("/second", 0)];
         let mut app = App::new(&candidates);
 
         // Starts at index 0.
