@@ -148,9 +148,8 @@ pub enum Commands {
 fn print_completions(conn: &Connection, prefix: &str) -> Result<()> {
     // Waypoint completions for `!` prefix
     if let Some(wp_prefix) = prefix.strip_prefix('!') {
-        let mut stmt = conn.prepare(
-            "SELECT name FROM waypoints WHERE name LIKE ?1 ORDER BY name LIMIT 20",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT name FROM waypoints WHERE name LIKE ?1 ORDER BY name LIMIT 20")?;
         let pattern = format!("{}%", wp_prefix);
         let rows = stmt.query_map([&pattern], |row| row.get::<_, String>(0))?;
         for row in rows {
@@ -161,9 +160,8 @@ fn print_completions(conn: &Connection, prefix: &str) -> Result<()> {
 
     // Project completions for `@` prefix
     if let Some(proj_prefix) = prefix.strip_prefix('@') {
-        let mut stmt = conn.prepare(
-            "SELECT name FROM projects WHERE name LIKE ?1 ORDER BY name LIMIT 20",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT name FROM projects WHERE name LIKE ?1 ORDER BY name LIMIT 20")?;
         let pattern = format!("{}%", proj_prefix);
         let rows = stmt.query_map([&pattern], |row| row.get::<_, String>(0))?;
         for row in rows {
@@ -363,28 +361,23 @@ pub fn run() -> Result<()> {
                         eprintln!("Database: {}", p.display());
                         if p.exists() {
                             let conn = db::open()?;
-                            let dir_count: i64 = conn.query_row(
-                                "SELECT COUNT(*) FROM directories",
-                                [],
-                                |row| row.get(0),
-                            )?;
-                            let wp_count: i64 = conn.query_row(
-                                "SELECT COUNT(*) FROM waypoints",
-                                [],
-                                |row| row.get(0),
-                            )?;
-                            let sess_count: i64 = conn.query_row(
-                                "SELECT COUNT(*) FROM sessions",
-                                [],
-                                |row| row.get(0),
-                            )?;
+                            let dir_count: i64 =
+                                conn.query_row("SELECT COUNT(*) FROM directories", [], |row| {
+                                    row.get(0)
+                                })?;
+                            let wp_count: i64 =
+                                conn.query_row("SELECT COUNT(*) FROM waypoints", [], |row| {
+                                    row.get(0)
+                                })?;
+                            let sess_count: i64 =
+                                conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| {
+                                    row.get(0)
+                                })?;
                             eprintln!("  Directories: {}", dir_count);
                             eprintln!("  Waypoints:   {}", wp_count);
                             eprintln!("  Sessions:    {}", sess_count);
                         } else {
-                            eprintln!(
-                                "  (not created yet — navigate once to initialize)"
-                            );
+                            eprintln!("  (not created yet — navigate once to initialize)");
                         }
                     }
                     Err(e) => eprintln!("Database: ERROR — {}", e),
@@ -451,9 +444,7 @@ pub fn run() -> Result<()> {
                             eprintln!();
                             eprintln!("Semantic indexing is coming in a future release.");
                             eprintln!("This will let you search by concept:");
-                            eprintln!(
-                                "  tp the service that handles webhook retries"
-                            );
+                            eprintln!("  tp the service that handles webhook retries");
                         }
                         None => {
                             eprintln!();
@@ -463,9 +454,7 @@ pub fn run() -> Result<()> {
                 }
                 #[cfg(not(feature = "ai"))]
                 {
-                    eprintln!(
-                        "AI features are not enabled. Rebuild with --features ai"
-                    );
+                    eprintln!("AI features are not enabled. Rebuild with --features ai");
                 }
                 Ok(())
             }
@@ -477,13 +466,9 @@ pub fn run() -> Result<()> {
                     match crate::ai::detect_api_key() {
                         Some(_) => {
                             eprintln!();
-                            eprintln!(
-                                "Workflow analysis is coming in a future release."
-                            );
+                            eprintln!("Workflow analysis is coming in a future release.");
                             eprintln!("This will identify navigation patterns like:");
-                            eprintln!(
-                                "  \"After visiting auth/, you usually go to tests/auth/\""
-                            );
+                            eprintln!("  \"After visiting auth/, you usually go to tests/auth/\"");
                         }
                         None => {
                             eprintln!();
@@ -493,9 +478,7 @@ pub fn run() -> Result<()> {
                 }
                 #[cfg(not(feature = "ai"))]
                 {
-                    eprintln!(
-                        "AI features are not enabled. Rebuild with --features ai"
-                    );
+                    eprintln!("AI features are not enabled. Rebuild with --features ai");
                 }
                 Ok(())
             }

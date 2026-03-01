@@ -23,10 +23,7 @@ pub fn force_bootstrap(conn: &Connection) -> Result<u64> {
     total += import_from_shell_history(conn).unwrap_or(0);
     total += discover_projects(conn).unwrap_or(0);
 
-    eprintln!(
-        "tp: bootstrap complete — indexed {} directories.",
-        total
-    );
+    eprintln!("tp: bootstrap complete — indexed {} directories.", total);
 
     Ok(total)
 }
@@ -453,11 +450,17 @@ mod tests {
         let count_before: i64 = conn
             .query_row("SELECT COUNT(*) FROM directories", [], |row| row.get(0))
             .unwrap();
-        assert!(count_before > 0, "DB should be non-empty before force_bootstrap");
+        assert!(
+            count_before > 0,
+            "DB should be non-empty before force_bootstrap"
+        );
 
         // force_bootstrap should succeed even on a non-empty DB
         // (unlike auto_bootstrap which would skip)
         let result = force_bootstrap(&conn);
-        assert!(result.is_ok(), "force_bootstrap should not error on non-empty DB");
+        assert!(
+            result.is_ok(),
+            "force_bootstrap should not error on non-empty DB"
+        );
     }
 }
