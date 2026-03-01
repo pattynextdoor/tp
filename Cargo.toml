@@ -1,10 +1,18 @@
 [package]
-name = "tp"
+name = "tp-nav"
 version = "0.1.0"
 edition = "2021"
 description = "Teleport anywhere in your codebase — AI-enhanced, project-aware directory navigation"
 license = "MIT"
 repository = "https://github.com/pattynextdoor/tp"
+homepage = "https://github.com/pattynextdoor/tp"
+readme = "README.md"
+keywords = ["cd", "navigation", "directory", "frecency", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "tp"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
