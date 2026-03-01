@@ -13,6 +13,24 @@ use std::path::{Path, PathBuf};
 use crate::import;
 use crate::project;
 
+/// Force-run bootstrap regardless of whether the database already has entries.
+/// Used by `tp init --bootstrap` so the user can explicitly re-seed.
+/// Returns the number of directories imported.
+pub fn force_bootstrap(conn: &Connection) -> Result<u64> {
+    let mut total = 0u64;
+
+    total += import_from_zoxide(conn).unwrap_or(0);
+    total += import_from_shell_history(conn).unwrap_or(0);
+    total += discover_projects(conn).unwrap_or(0);
+
+    eprintln!(
+        "tp: bootstrap complete — indexed {} directories.",
+        total
+    );
+
+    Ok(total)
+}
+
 /// Check if the database is empty and run bootstrap if so.
 /// Returns true if bootstrap ran.
 pub fn auto_bootstrap(conn: &Connection) -> Result<bool> {
@@ -424,5 +442,22 @@ mod tests {
 
         let ran = auto_bootstrap(&conn).unwrap();
         assert!(!ran, "bootstrap should NOT run when DB already has entries");
+    }
+
+    #[test]
+    fn test_force_bootstrap_runs_on_nonempty_db() {
+        let conn = db::open_memory().unwrap();
+        // Seed the database so it's non-empty
+        frecency::record_visit(&conn, "/tmp/existing", None).unwrap();
+
+        let count_before: i64 = conn
+            .query_row("SELECT COUNT(*) FROM directories", [], |row| row.get(0))
+            .unwrap();
+        assert!(count_before > 0, "DB should be non-empty before force_bootstrap");
+
+        // force_bootstrap should succeed even on a non-empty DB
+        // (unlike auto_bootstrap which would skip)
+        let result = force_bootstrap(&conn);
+        assert!(result.is_ok(), "force_bootstrap should not error on non-empty DB");
     }
 }

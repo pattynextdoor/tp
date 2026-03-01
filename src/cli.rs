@@ -67,6 +67,10 @@ pub enum Commands {
         /// Custom command name (default: tp)
         #[arg(long, default_value = "tp")]
         cmd: String,
+
+        /// Force-run bootstrap to (re-)seed the database from shell history, zoxide, and project discovery
+        #[arg(long)]
+        bootstrap: bool,
     },
 
     /// Import navigation data from another tool
@@ -197,7 +201,16 @@ pub fn run() -> Result<()> {
     // Handle subcommands first
     if let Some(cmd) = &cli.command {
         return match cmd {
-            Commands::Init { shell, cmd } => {
+            Commands::Init {
+                shell,
+                cmd,
+                bootstrap,
+            } => {
+                if *bootstrap {
+                    let conn = db::open()?;
+                    crate::bootstrap::force_bootstrap(&conn)?;
+                    return Ok(());
+                }
                 let code = shell::generate_init(shell, cmd)?;
                 print!("{}", code);
                 Ok(())
