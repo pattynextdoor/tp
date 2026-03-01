@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use crate::db;
+use crate::import;
 use crate::nav::frecency;
 use crate::nav::waypoints;
 use crate::project;
@@ -94,10 +95,39 @@ pub fn run() -> Result<()> {
                 Ok(())
             }
             Commands::Import { from, path } => {
-                eprintln!("Import from '{}' is not yet implemented.", from);
-                if let Some(p) = path {
-                    eprintln!("(path: {})", p);
+                if from != "zoxide" {
+                    eprintln!(
+                        "Import from '{}' is not yet supported. Supported: zoxide",
+                        from
+                    );
+                    return Ok(());
                 }
+
+                let conn = db::open()?;
+
+                let count = if let Some(ref file_path) = path {
+                    // Read from a file provided by the user
+                    let file = std::fs::File::open(file_path)
+                        .with_context(|| format!("could not open file: {}", file_path))?;
+                    let reader = std::io::BufReader::new(file);
+                    import::import_zoxide(&conn, reader)?
+                } else {
+                    // Shell out to zoxide to get its data
+                    let output = std::process::Command::new("zoxide")
+                        .args(["query", "-l", "-s"])
+                        .output()
+                        .context("failed to run `zoxide query -l -s` — is zoxide installed?")?;
+
+                    if !output.status.success() {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        anyhow::bail!("zoxide exited with error: {}", stderr.trim());
+                    }
+
+                    let reader = std::io::BufReader::new(std::io::Cursor::new(output.stdout));
+                    import::import_zoxide(&conn, reader)?
+                };
+
+                eprintln!("Imported {} entries from zoxide.", count);
                 Ok(())
             }
             Commands::Add { path } => {

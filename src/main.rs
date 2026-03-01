@@ -1,5 +1,6 @@
 mod cli;
 mod db;
+mod import;
 mod nav;
 mod project;
 mod shell;
