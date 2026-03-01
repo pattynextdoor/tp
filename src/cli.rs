@@ -113,6 +113,12 @@ pub enum Commands {
         shell: Shell,
     },
 
+    /// Remove a directory from the database
+    Remove {
+        /// Path to remove
+        path: String,
+    },
+
     /// Print matching directories (for scripting)
     Query {
         /// Search terms
@@ -307,6 +313,16 @@ pub fn run() -> Result<()> {
                         std::process::exit(1);
                     }
                 }
+            }
+            Commands::Remove { path } => {
+                let conn = db::open()?;
+                let removed = frecency::remove_path(&conn, path)?;
+                if removed > 0 {
+                    eprintln!("Removed: {}", path);
+                } else {
+                    eprintln!("Not found: {}", path);
+                }
+                Ok(())
             }
             Commands::Query { terms, score } => {
                 let conn = db::open()?;

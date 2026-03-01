@@ -184,6 +184,13 @@ pub fn query_frecency(
     Ok(candidates)
 }
 
+/// Remove a path from the directories table and its session history.
+pub fn remove_path(conn: &Connection, path: &str) -> Result<u64> {
+    let deleted = conn.execute("DELETE FROM directories WHERE path = ?1", [path])?;
+    conn.execute("DELETE FROM sessions WHERE to_path = ?1", [path])?;
+    Ok(deleted as u64)
+}
+
 /// Remove a list of paths from the directories table.
 /// Called silently during queries to self-heal stale entries.
 fn prune_paths(conn: &Connection, paths: &[String]) -> Result<()> {
@@ -351,5 +358,31 @@ mod tests {
             "expected pruned count <= 101, got {}",
             count_after
         );
+    }
+
+    #[test]
+    fn test_remove_path() {
+        let conn = db::open_memory().unwrap();
+        record_visit(&conn, "/home/user/old-project", None).unwrap();
+
+        let count_before: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM directories WHERE path = ?1",
+                ["/home/user/old-project"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_before, 1);
+
+        remove_path(&conn, "/home/user/old-project").unwrap();
+
+        let count_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM directories WHERE path = ?1",
+                ["/home/user/old-project"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_after, 0);
     }
 }
