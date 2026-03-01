@@ -20,18 +20,50 @@ pub fn detect_api_key() -> Option<(String, &'static str)> {
     None
 }
 
-/// Interactive API key setup — detects existing keys and confirms usage.
+/// Interactive API key setup — detects existing keys and tests connectivity.
 ///
-/// Stub implementation: prints what was found (no interactive prompts yet).
+/// When an API key is found, sends a minimal request to Anthropic to verify
+/// the key is valid and the network is reachable. This gives users immediate
+/// feedback when running `tp --setup-ai`.
 pub fn setup_key() -> Result<()> {
     match detect_api_key() {
-        Some((_, source)) => {
+        Some((key, source)) => {
             eprintln!("Found API key in {}", source);
-            eprintln!("AI features are ready to use.");
+            eprintln!("Testing connection...");
+
+            let client = reqwest::blocking::Client::new();
+            let body = serde_json::json!({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "Hi"}]
+            });
+
+            match client
+                .post("https://api.anthropic.com/v1/messages")
+                .header("x-api-key", &key)
+                .header("anthropic-version", "2023-06-01")
+                .header("content-type", "application/json")
+                .timeout(std::time::Duration::from_secs(5))
+                .json(&body)
+                .send()
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    eprintln!("Connection successful! AI features are ready.");
+                }
+                Ok(resp) => {
+                    eprintln!("API returned status {}. Check your key.", resp.status());
+                }
+                Err(e) => {
+                    eprintln!("Connection failed: {}. Check network/key.", e);
+                }
+            }
         }
         None => {
-            eprintln!("No API key found.");
-            eprintln!("Set one of: TP_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY");
+            eprintln!("No API key found.\n");
+            eprintln!("To enable AI features, set one of these environment variables:");
+            eprintln!("  export TP_API_KEY=sk-ant-...");
+            eprintln!("  export ANTHROPIC_API_KEY=sk-ant-...\n");
+            eprintln!("Then run `tp --setup-ai` again to verify.");
         }
     }
     Ok(())
