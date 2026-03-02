@@ -4,7 +4,7 @@
 
 <br/>
 
-<h3>⚡ Teleport anywhere in your codebase.</h3>
+<h3>🎮 Unlock fast travel in your terminal.</h3>
 
 [![Rust](https://img.shields.io/badge/Built_with-Rust-dea584?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
@@ -14,9 +14,9 @@
 
 ---
 
-A terminal navigator that understands your projects, not just your history.
+Your terminal knows where you've been. `tp` knows where you're going.
 
-`tp` combines frecency with project awareness — so when you type `tp src`, it picks the `src/` in the project you're actually working in. Built in Rust, works in six shells, useful from the first command.
+Project-aware navigation that combines frecency with context — so when you type `tp src`, it picks the `src/` in the project you're actually working in. Built in Rust, works in six shells, useful from the first command.
 
 ## Quick Start
 
