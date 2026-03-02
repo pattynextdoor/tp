@@ -17,6 +17,10 @@
 
 Your terminal knows where you've been. `tp` knows where you're going.
 
+<p align="center">
+<img src="demo.gif" width="800" alt="tp demo — fuzzy jumping, project switching, waypoints" />
+</p>
+
 Project-aware navigation that combines frecency with context — so when you type `tp src`, it picks the `src/` in the project you're actually working in. Built in Rust, works in six shells, useful from the first command.
 
 ## Install

@@ -147,7 +147,7 @@ pub fn teleport_effect(path: &str, match_type: &str) {
         _ => pick_random(&["⚡ →", "⚡ teleported →", "⚡ warped →"]),
     };
 
-    eprintln!("{}{} {}{}", CYAN, flavor, display_path, RESET);
+    eprintln!("{}{} {}{}", YELLOW, flavor, display_path, RESET);
 }
 
 /// BluePulse spinner frames and interval.
