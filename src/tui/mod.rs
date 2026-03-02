@@ -284,12 +284,22 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     } else {
         Color::White
     };
-    let input_text = Line::from(vec![
-        Span::styled("> ", Style::default().fg(Color::Cyan)),
-        Span::styled(&app.input, Style::default().fg(input_color)),
-    ]);
-    let input_paragraph =
-        Paragraph::new(input_text).block(Block::default().borders(Borders::ALL).title(" tp "));
+    let input_text = if app.input.is_empty() {
+        Line::from(vec![
+            Span::styled("> ", Style::default().fg(Color::Cyan)),
+            Span::styled("type to filter...", Style::default().fg(Color::DarkGray)),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled("> ", Style::default().fg(Color::Cyan)),
+            Span::styled(&app.input, Style::default().fg(input_color)),
+        ])
+    };
+    let input_paragraph = Paragraph::new(input_text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" tp — where to? "),
+    );
     f.render_widget(input_paragraph, chunks[0]);
 
     // --- Candidate list ---
@@ -328,7 +338,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                 let rest = &c.path[home.len()..];
                 vec![
                     Span::raw(prefix),
-                    Span::styled("~", Style::default().fg(Color::DarkGray)),
+                    Span::styled("~", Style::default().fg(Color::Gray)),
                     Span::styled(rest.to_string(), path_style),
                 ]
             } else {
@@ -348,9 +358,16 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             }
             meta_parts.push(c.relative_time.clone());
 
+            let meta_color = if is_selected {
+                Color::Rgb(140, 140, 140) // bright enough to read when highlighted
+            } else if is_faded {
+                Color::DarkGray
+            } else {
+                Color::Gray // visible but secondary
+            };
             let line2 = Line::from(Span::styled(
                 format!("    {}", meta_parts.join(" · ")),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(meta_color),
             ));
 
             ListItem::new(vec![line1, line2])
