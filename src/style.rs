@@ -6,9 +6,7 @@ use std::env;
 /// Check if stderr supports color output.
 /// Respects NO_COLOR (https://no-color.org/) and TP_QUIET.
 pub fn use_color() -> bool {
-    env::var("NO_COLOR").is_err()
-        && env::var("TP_QUIET").is_err()
-        && atty_stderr()
+    env::var("NO_COLOR").is_err() && env::var("TP_QUIET").is_err() && atty_stderr()
 }
 
 /// Check if stderr is a TTY (best effort, no deps).
@@ -217,7 +215,10 @@ fn pick_random<'a>(options: &[&'a str]) -> &'a str {
 /// Print the first-run welcome message.
 pub fn welcome_message(dirs: usize, zoxide: usize, projects: usize) {
     if !use_color() {
-        eprintln!("tp: imported {} dirs, {} from zoxide, {} projects discovered", dirs, zoxide, projects);
+        eprintln!(
+            "tp: imported {} dirs, {} from zoxide, {} projects discovered",
+            dirs, zoxide, projects
+        );
         return;
     }
 
@@ -225,7 +226,10 @@ pub fn welcome_message(dirs: usize, zoxide: usize, projects: usize) {
     eprintln!("  {}{}◈ tp — fast travel unlocked{}", BOLD, CYAN, RESET);
     eprintln!();
     if dirs > 0 {
-        eprintln!("  {}Found {} directories in shell history{}", DIM, dirs, RESET);
+        eprintln!(
+            "  {}Found {} directories in shell history{}",
+            DIM, dirs, RESET
+        );
     }
     if zoxide > 0 {
         eprintln!("  {}Imported {} entries from zoxide{}", DIM, zoxide, RESET);
@@ -234,6 +238,9 @@ pub fn welcome_message(dirs: usize, zoxide: usize, projects: usize) {
         eprintln!("  {}Discovered {} projects{}", DIM, projects, RESET);
     }
     eprintln!();
-    eprintln!("  {}You're ready. Try: {}tp <project-name>{}", DIM, RESET, RESET);
+    eprintln!(
+        "  {}You're ready. Try: {}tp <project-name>{}",
+        DIM, RESET, RESET
+    );
     eprintln!();
 }

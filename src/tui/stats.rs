@@ -20,11 +20,11 @@ struct Stats {
     total_visits: i64,
     total_waypoints: usize,
     total_projects: usize,
-    top_dirs: Vec<(String, f64)>,       // (basename, score)
+    top_dirs: Vec<(String, f64)>,            // (basename, score)
     project_breakdown: Vec<(String, usize)>, // (project_name, dir_count)
-    hourly_heatmap: [i64; 24],          // visits per hour of day
+    hourly_heatmap: [i64; 24],               // visits per hour of day
     visits_today: i64,
-    waypoints: Vec<(String, String)>,   // (name, path)
+    waypoints: Vec<(String, String)>, // (name, path)
 }
 
 /// Animation state for the dashboard.
@@ -34,39 +34,32 @@ struct AnimState {
 }
 
 fn gather_stats(conn: &Connection) -> Result<Stats> {
-    let total_dirs: usize = conn
-        .query_row("SELECT COUNT(*) FROM directories", [], |row| row.get(0))?;
+    let total_dirs: usize =
+        conn.query_row("SELECT COUNT(*) FROM directories", [], |row| row.get(0))?;
 
-    let total_visits: i64 = conn
-        .query_row(
-            "SELECT COALESCE(SUM(access_count), 0) FROM directories",
-            [],
-            |row| row.get(0),
-        )?;
+    let total_visits: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(access_count), 0) FROM directories",
+        [],
+        |row| row.get(0),
+    )?;
 
-    let total_waypoints: usize = conn
-        .query_row("SELECT COUNT(*) FROM waypoints", [], |row| row.get(0))?;
+    let total_waypoints: usize =
+        conn.query_row("SELECT COUNT(*) FROM waypoints", [], |row| row.get(0))?;
 
-    let total_projects: usize = conn
-        .query_row(
-            "SELECT COUNT(DISTINCT project_root) FROM directories WHERE project_root IS NOT NULL",
-            [],
-            |row| row.get(0),
-        )?;
+    let total_projects: usize = conn.query_row(
+        "SELECT COUNT(DISTINCT project_root) FROM directories WHERE project_root IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )?;
 
     // Top directories by frecency
-    let mut stmt = conn.prepare(
-        "SELECT path, frecency FROM directories ORDER BY frecency DESC LIMIT 10",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT path, frecency FROM directories ORDER BY frecency DESC LIMIT 10")?;
     let top_dirs: Vec<(String, f64)> = stmt
         .query_map([], |row| {
             let path: String = row.get(0)?;
             let score: f64 = row.get(1)?;
-            let basename = path
-                .rsplit(['/', '\\'])
-                .next()
-                .unwrap_or(&path)
-                .to_string();
+            let basename = path.rsplit(['/', '\\']).next().unwrap_or(&path).to_string();
             Ok((basename, score))
         })?
         .filter_map(|r| r.ok())
@@ -82,11 +75,7 @@ fn gather_stats(conn: &Connection) -> Result<Stats> {
         .query_map([], |row| {
             let root: String = row.get(0)?;
             let count: usize = row.get(1)?;
-            let name = root
-                .rsplit(['/', '\\'])
-                .next()
-                .unwrap_or(&root)
-                .to_string();
+            let name = root.rsplit(['/', '\\']).next().unwrap_or(&root).to_string();
             Ok((name, count))
         })?
         .filter_map(|r| r.ok())
@@ -94,9 +83,7 @@ fn gather_stats(conn: &Connection) -> Result<Stats> {
 
     // Hourly heatmap from sessions
     let mut hourly = [0i64; 24];
-    let mut stmt = conn.prepare(
-        "SELECT timestamp FROM sessions WHERE timestamp IS NOT NULL",
-    )?;
+    let mut stmt = conn.prepare("SELECT timestamp FROM sessions WHERE timestamp IS NOT NULL")?;
     let timestamps: Vec<i64> = stmt
         .query_map([], |row| row.get(0))?
         .filter_map(|r| r.ok())
@@ -116,17 +103,14 @@ fn gather_stats(conn: &Connection) -> Result<Stats> {
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     let today_start = now - (now % 86400);
-    let visits_today: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sessions WHERE timestamp >= ?1",
-            [today_start],
-            |row| row.get(0),
-        )?;
+    let visits_today: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sessions WHERE timestamp >= ?1",
+        [today_start],
+        |row| row.get(0),
+    )?;
 
     // Waypoints
-    let mut stmt = conn.prepare(
-        "SELECT name, path FROM waypoints ORDER BY name LIMIT 20",
-    )?;
+    let mut stmt = conn.prepare("SELECT name, path FROM waypoints ORDER BY name LIMIT 20")?;
     let waypoints: Vec<(String, String)> = stmt
         .query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -187,36 +171,47 @@ pub fn show_stats(conn: &Connection) -> Result<()> {
 
             // Header
             let header = Paragraph::new(Line::from(vec![
-                Span::styled("◈ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-                Span::styled("tp stats", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "◈ ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "tp stats",
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  "),
                 Span::styled(
                     format!(
                         "{} dirs · {} visits · {} waypoints · {} projects",
-                        stats.total_dirs, stats.total_visits, stats.total_waypoints, stats.total_projects
+                        stats.total_dirs,
+                        stats.total_visits,
+                        stats.total_waypoints,
+                        stats.total_projects
                     ),
                     Style::default().fg(Color::DarkGray),
                 ),
             ]))
-            .block(Block::default().borders(Borders::BOTTOM).border_style(Style::default().fg(Color::DarkGray)));
+            .block(
+                Block::default()
+                    .borders(Borders::BOTTOM)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            );
             frame.render_widget(header, main_chunks[0]);
 
             // Body: two columns
             let body_chunks = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(55),
-                    Constraint::Percentage(45),
-                ])
+                .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
                 .split(main_chunks[1]);
 
             // Left: top dirs + heatmap
             let left_chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(8),
-                    Constraint::Length(6),
-                ])
+                .constraints([Constraint::Min(8), Constraint::Length(6)])
                 .split(body_chunks[0]);
 
             render_top_dirs(frame, left_chunks[0], &stats, anim.progress);
@@ -227,8 +222,10 @@ pub fn show_stats(conn: &Connection) -> Result<()> {
                 .direction(Direction::Vertical)
                 .constraints([
                     Constraint::Min(4),
-                    Constraint::Length(if stats.waypoints.is_empty() { 0 } else { 
-                        (stats.waypoints.len() as u16 + 2).min(8) 
+                    Constraint::Length(if stats.waypoints.is_empty() {
+                        0
+                    } else {
+                        (stats.waypoints.len() as u16 + 2).min(8)
                     }),
                     Constraint::Length(5),
                 ])
@@ -243,9 +240,19 @@ pub fn show_stats(conn: &Connection) -> Result<()> {
             // Footer
             let footer = Paragraph::new(Line::from(vec![
                 Span::styled("  ", Style::default()),
-                Span::styled("r", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "r",
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" refresh  ", Style::default().fg(Color::DarkGray)),
-                Span::styled("q", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "q",
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" quit", Style::default().fg(Color::DarkGray)),
             ]));
             frame.render_widget(footer, main_chunks[2]);
@@ -327,7 +334,9 @@ fn render_top_dirs(frame: &mut ratatui::Frame, area: Rect, stats: &Stats, progre
     let block = Block::default()
         .title(Span::styled(
             " top directories ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
@@ -372,12 +381,7 @@ fn render_heatmap(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
         // Row 2: hour labels
         Line::from(
             (0..24)
-                .map(|h| {
-                    Span::styled(
-                        format!("{:>2}", h),
-                        Style::default().fg(Color::DarkGray),
-                    )
-                })
+                .map(|h| Span::styled(format!("{:>2}", h), Style::default().fg(Color::DarkGray)))
                 .collect::<Vec<_>>(),
         ),
     ];
@@ -385,7 +389,9 @@ fn render_heatmap(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
     let block = Block::default()
         .title(Span::styled(
             " activity (hour of day, UTC) ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
@@ -395,7 +401,11 @@ fn render_heatmap(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
 }
 
 fn render_projects(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
-    let max_count = stats.project_breakdown.first().map(|(_, c)| *c).unwrap_or(1);
+    let max_count = stats
+        .project_breakdown
+        .first()
+        .map(|(_, c)| *c)
+        .unwrap_or(1);
 
     let items: Vec<Line> = stats
         .project_breakdown
@@ -415,7 +425,9 @@ fn render_projects(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
     let block = Block::default()
         .title(Span::styled(
             " projects ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
@@ -435,7 +447,10 @@ fn render_waypoints(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
                 .unwrap_or_else(|| path.clone());
 
             Line::from(vec![
-                Span::styled(format!("  !{:<12}", name), Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    format!("  !{:<12}", name),
+                    Style::default().fg(Color::Yellow),
+                ),
                 Span::styled(display_path, Style::default().fg(Color::DarkGray)),
             ])
         })
@@ -444,7 +459,9 @@ fn render_waypoints(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
     let block = Block::default()
         .title(Span::styled(
             " waypoints ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
@@ -459,7 +476,9 @@ fn render_today(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
             Span::styled("  Teleports today: ", Style::default().fg(Color::DarkGray)),
             Span::styled(
                 format!("{}", stats.visits_today),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
@@ -474,7 +493,9 @@ fn render_today(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
     let block = Block::default()
         .title(Span::styled(
             " today ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));

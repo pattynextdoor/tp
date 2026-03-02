@@ -189,7 +189,8 @@ fn suggest_closest(conn: &Connection, query: &str) -> Result<String> {
     let mut best: Option<(usize, String)> = None;
 
     for c in &candidates {
-        let basename = c.path
+        let basename = c
+            .path
             .rsplit(['/', '\\'])
             .next()
             .unwrap_or(&c.path)
@@ -199,10 +200,9 @@ fn suggest_closest(conn: &Connection, query: &str) -> Result<String> {
 
         // Only suggest if reasonably close (distance <= half the query length + 1)
         let max_dist = (query_lower.len() / 2) + 1;
-        if dist <= max_dist
-            && (best.is_none() || dist < best.as_ref().unwrap().0) {
-                best = Some((dist, basename));
-            }
+        if dist <= max_dist && (best.is_none() || dist < best.as_ref().unwrap().0) {
+            best = Some((dist, basename));
+        }
     }
 
     best.map(|(_, name)| name)
@@ -323,16 +323,16 @@ pub fn run() -> Result<()> {
                     eprintln!("No directories tracked yet. Navigate around to build history.");
                 } else {
                     let color = crate::style::use_color();
-                    let max_score = candidates
-                        .first()
-                        .map(|c| c.score)
-                        .unwrap_or(1.0);
+                    let max_score = candidates.first().map(|c| c.score).unwrap_or(1.0);
 
                     if color {
                         // Group by project
-                        let mut groups: Vec<(Option<String>, Vec<&frecency::Candidate>)> = Vec::new();
+                        let mut groups: Vec<(Option<String>, Vec<&frecency::Candidate>)> =
+                            Vec::new();
                         for c in &candidates {
-                            let proj = c.project_root.as_deref()
+                            let proj = c
+                                .project_root
+                                .as_deref()
                                 .and_then(|p| std::path::Path::new(p).file_name())
                                 .map(|n| n.to_string_lossy().to_string());
 
@@ -346,26 +346,41 @@ pub fn run() -> Result<()> {
                         for (project_name, dirs) in &groups {
                             // Project header
                             if let Some(name) = project_name {
-                                let kind = dirs.first()
+                                let kind = dirs
+                                    .first()
                                     .and_then(|c| c.project_root.as_deref())
                                     .and_then(crate::project::project_kind);
                                 let icon = crate::style::project_icon(kind);
-                                let branch = dirs.first()
+                                let branch = dirs
+                                    .first()
                                     .and_then(|c| c.project_root.as_deref())
                                     .and_then(get_git_branch);
                                 let branch_str = branch
-                                    .map(|b| format!(" {}({}){}", crate::style::DIM, b, crate::style::RESET))
+                                    .map(|b| {
+                                        format!(
+                                            " {}({}){}",
+                                            crate::style::DIM,
+                                            b,
+                                            crate::style::RESET
+                                        )
+                                    })
                                     .unwrap_or_default();
 
                                 eprintln!(
                                     "\n  {}{}{} {}{}{}",
-                                    crate::style::BOLD, crate::style::CYAN,
-                                    icon, name, branch_str, crate::style::RESET
+                                    crate::style::BOLD,
+                                    crate::style::CYAN,
+                                    icon,
+                                    name,
+                                    branch_str,
+                                    crate::style::RESET
                                 );
                             } else {
                                 eprintln!(
                                     "\n  {}{}📁 other{}",
-                                    crate::style::BOLD, crate::style::GRAY, crate::style::RESET
+                                    crate::style::BOLD,
+                                    crate::style::GRAY,
+                                    crate::style::RESET
                                 );
                             }
 
@@ -377,16 +392,24 @@ pub fn run() -> Result<()> {
 
                                 eprintln!(
                                     "    {}{:>6.1}{} {} {}{} {}{}{}",
-                                    sc, c.score, crate::style::RESET,
-                                    bar, path, crate::style::RESET,
-                                    crate::style::GRAY, time, crate::style::RESET,
+                                    sc,
+                                    c.score,
+                                    crate::style::RESET,
+                                    bar,
+                                    path,
+                                    crate::style::RESET,
+                                    crate::style::GRAY,
+                                    time,
+                                    crate::style::RESET,
                                 );
                             }
                         }
                         eprintln!();
                     } else {
                         for c in &candidates {
-                            let project = c.project_root.as_deref()
+                            let project = c
+                                .project_root
+                                .as_deref()
                                 .and_then(|p| std::path::Path::new(p).file_name())
                                 .map(|n| format!(" [{}]", n.to_string_lossy()))
                                 .unwrap_or_default();
@@ -664,8 +687,17 @@ pub fn run() -> Result<()> {
         return print_completions(&conn, prefix);
     }
 
-    // Main navigation flow — bare `tp` with no args launches TUI picker
-    let interactive = cli.interactive || cli.query.is_empty();
+    // Main navigation flow — bare `tp` with no args launches TUI picker,
+    // but only when stdin is a real terminal. Without a TTY the TUI's
+    // event::read() would block forever (e.g. running from scripts or pipes).
+    let stdin_is_tty = std::io::IsTerminal::is_terminal(&std::io::stdin());
+    let interactive = cli.interactive || (cli.query.is_empty() && stdin_is_tty);
+
+    // No query and no TTY — nothing useful to do, show help.
+    if cli.query.is_empty() && !interactive {
+        Cli::command().print_help()?;
+        return Ok(());
+    }
 
     let conn = db::open()?;
 
@@ -683,14 +715,18 @@ pub fn run() -> Result<()> {
             let query_str = cli.query.join(" ");
             if crate::style::use_color() {
                 eprint!(
-                    "  {}🔍 nothing matched \"{}\"{}", 
-                    crate::style::YELLOW, query_str, crate::style::RESET
+                    "  {}🔍 nothing matched \"{}\"{}",
+                    crate::style::YELLOW,
+                    query_str,
+                    crate::style::RESET
                 );
                 // Try to suggest a close match
                 if let Ok(suggestion) = suggest_closest(&conn, &query_str) {
                     eprintln!(
                         " — {}did you mean \"{}\"?{}",
-                        crate::style::DIM, suggestion, crate::style::RESET
+                        crate::style::DIM,
+                        suggestion,
+                        crate::style::RESET
                     );
                 } else {
                     eprintln!();

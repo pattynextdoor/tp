@@ -46,6 +46,12 @@ impl App {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
+        // Cache git branches per project root to avoid spawning hundreds of
+        // git processes. Most candidates share the same project root, so this
+        // reduces ~200 subprocess spawns down to a handful.
+        let mut branch_cache: std::collections::HashMap<String, Option<String>> =
+            std::collections::HashMap::new();
+
         let all_candidates: Vec<CandidateDisplay> = candidates
             .iter()
             .map(|c| {
@@ -55,8 +61,16 @@ impl App {
                     .and_then(|pr| pr.rsplit('/').next())
                     .map(|s| s.to_string());
 
-                let git_branch = get_git_branch(&c.path)
-                    .or_else(|| c.project_root.as_deref().and_then(get_git_branch));
+                // Look up git branch from the project root (cached).
+                // Only fall back to per-path lookup if there's no project root.
+                let git_branch = if let Some(root) = c.project_root.as_deref() {
+                    branch_cache
+                        .entry(root.to_string())
+                        .or_insert_with(|| get_git_branch(root))
+                        .clone()
+                } else {
+                    None
+                };
 
                 let project_kind = c
                     .project_root
@@ -187,11 +201,13 @@ pub fn pick(candidates: &[Candidate]) -> Result<Option<String>> {
         return Ok(None);
     }
 
-    // Enter alternate screen + raw mode so we own the terminal.
+    // Render the TUI to stderr so it stays visible even when the shell
+    // wrapper captures stdout (e.g. `result="$(command tp)"`).  stdout
+    // is reserved for the final path that the wrapper `cd`s into.
     enable_raw_mode()?;
-    std::io::stdout().execute(EnterAlternateScreen)?;
+    std::io::stderr().execute(EnterAlternateScreen)?;
 
-    let backend = CrosstermBackend::new(std::io::stdout());
+    let backend = CrosstermBackend::new(std::io::stderr());
     let mut terminal = Terminal::new(backend)?;
 
     let app = App::new(candidates);
@@ -199,7 +215,7 @@ pub fn pick(candidates: &[Candidate]) -> Result<Option<String>> {
 
     // Always clean up, even if the loop errored.
     disable_raw_mode()?;
-    std::io::stdout().execute(LeaveAlternateScreen)?;
+    std::io::stderr().execute(LeaveAlternateScreen)?;
 
     result
 }
@@ -209,7 +225,7 @@ pub fn pick(candidates: &[Candidate]) -> Result<Option<String>> {
 // ---------------------------------------------------------------------------
 
 fn run_event_loop(
-    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stderr>>,
     mut app: App,
 ) -> Result<Option<String>> {
     loop {
@@ -277,7 +293,9 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     f.render_widget(input_paragraph, chunks[0]);
 
     // --- Candidate list ---
-    let max_score = app.filtered.first()
+    let max_score = app
+        .filtered
+        .first()
         .map(|&idx| app.all_candidates[idx].score)
         .unwrap_or(1.0)
         .max(0.001);
@@ -314,10 +332,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                     Span::styled(rest.to_string(), path_style),
                 ]
             } else {
-                vec![
-                    Span::raw(prefix),
-                    Span::styled(c.path.clone(), path_style),
-                ]
+                vec![Span::raw(prefix), Span::styled(c.path.clone(), path_style)]
             };
 
             let line1 = Line::from(path_spans);
@@ -353,17 +368,23 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         ),
         Span::styled(
             "↑↓",
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" navigate  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
             "⏎",
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" select  ", Style::default().fg(Color::DarkGray)),
         Span::styled(
             "esc",
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
     ]));
