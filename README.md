@@ -51,7 +51,7 @@ If you juggle multiple projects, tp was built for you.
 | **Waypoints** | `tp !deploy` — pin paths that frecency would forget |
 | **Self-healing database** | Dead paths pruned automatically, never suggested |
 | **Zero cold start** | Imports shell history, zoxide data, and discovers projects on first run |
-| **AI tiebreaker** | When two paths score equally, an optional AI oracle picks the right one |
+| **Tiebreaker reranking** | When two paths score equally, an optional BYOK oracle picks the right one |
 
 ## Features
 
@@ -72,26 +72,11 @@ Free, open source, works entirely offline. No accounts, no cloud.
 - **6 shells** — bash, zsh, fish, PowerShell, Nushell, Elvish
 - **Tab completions** — dynamic completions for directories, waypoints, and projects in bash/zsh/fish + [Warp/Fig spec](completions/tp.ts)
 - **Navigation history** — `tp back` to retrace your steps, stack-based (not just one level like `cd -`)
-
-### AI Features (BYOK)
-
-Bring your own API key, or don't. tp works perfectly without it — AI just breaks ties and adds flavor.
-
-- **AI reranking** — when frecency scores are tied, AI considers your cwd and candidates to pick the right one
-- **Session recall** — `tp --recall` answers the Monday morning question: *"where was I?"*
+- **BYOK reranking** — when frecency scores are tied, an optional API call (Anthropic) considers context to break the tie. Bring your own key, or don't — tp works perfectly without it.
+- **Session recall** — `tp --recall` summarizes where you've been working today
 - **Smart aliasing** — `tp suggest` recommends waypoint names for your most-visited directories
-- **Semantic project indexing** *(coming soon)* — search by concept: `tp the service that handles webhook retries`
-- **Workflow prediction** *(coming soon)* — spots navigation patterns and nudges you toward the next stop
-- **Natural language nav** *(planned)* — `tp the auth service terraform module` resolves even when none of those words appear in the path
 
-### Pro *(coming soon)*
-
-For teams that want shared context across machines.
-
-- **Cross-machine sync** — frecency, waypoints, and project index via E2E encrypted cloud
-- **Team waypoints** — canonical navigation shortcuts for the whole org
-- **Onboarding mode** — new engineers inherit the team's navigation index on day one
-- **Navigation analytics** — personal and team dashboards
+See [ROADMAP.md](ROADMAP.md) for what's next.
 
 ---
 
@@ -124,7 +109,7 @@ Six steps from query to destination. Most trips end at step four.
  └──────────┬──────────┘
             │ still too close
  ┌──────────▼──────────┐
- │  5. AI reranking     │──▶ ~150 tokens, <300ms
+ │  5. BYOK reranking   │──▶ ~150 tokens, <300ms
  └──────────┬──────────┘
             │ ¯\_(ツ)_/¯
  ┌──────────▼──────────┐
@@ -212,13 +197,10 @@ tp import --from=zoxide Import from zoxide
 tp completions <shell>  Generate shell completions
 
 tp suggest              Suggest waypoint names for frequent paths
-tp suggest --ai         Use AI for creative names
-
-tp --recall             AI: "where was I?" session digest
-tp --setup-ai           Configure AI API key
+tp --recall             Session digest — "where was I?"
+tp --setup-ai           Configure API key for reranking
 
 tp doctor               Diagnose issues
-tp sync                 Cloud sync (Pro, coming soon)
 ```
 
 ## Configuration
@@ -291,8 +273,8 @@ python3 bench/chart.py   # generate SVG charts
 
 - **Core** — Rust, <5MB binary, <5ms navigation
 - **Database** — SQLite with WAL mode, auto-migrations, indexed
-- **AI & TUI** — compile-time feature flags (`--features ai,tui`), both on by default
-- **Local-first** — fully functional offline. AI is the fallback, never the hot path.
+- **TUI & reranking** — compile-time feature flags (`--features ai,tui`), both on by default
+- **Local-first** — fully functional offline. Network features are opt-in fallbacks, never the hot path.
 
 ## Design
 
@@ -308,9 +290,9 @@ tp is in **beta**. Core navigation, frecency, project detection, waypoints, shel
 | Phase | Status | What shipped |
 |-------|--------|-------------|
 | **Alpha** | ✅ | Core: frecency, project detection, waypoints, 6-shell integration, bootstrap, zoxide import |
-| **Beta** | ✅ | AI reranking (BYOK), TUI picker, session recall, smart aliasing, tab completions, typo tolerance. CI on 3 platforms. |
-| **v1.0** | Planned | Semantic indexing, workflow prediction, natural language nav, VS Code extension |
-| **Pro** | Planned | Cloud sync, team waypoints, onboarding mode, analytics |
+| **Beta** | ✅ | TUI picker, BYOK reranking, session recall, smart aliasing, tab completions, typo tolerance. CI on 3 platforms. |
+
+See [ROADMAP.md](ROADMAP.md) for what's planned.
 
 ## License
 
