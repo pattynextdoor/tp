@@ -4,7 +4,7 @@
 
 <br/>
 
-<h3>🎮 Unlock fast travel in your terminal.</h3>
+<h3>⚡ Unlock fast travel in your terminal.</h3>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/pattynextdoor/tp/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/pattynextdoor/tp/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/Built_with-Rust-dea584?style=flat-square&logo=rust)](https://www.rust-lang.org/)
