@@ -10,6 +10,7 @@ All configuration is via environment variables. `tp` ships with sane defaults an
 | `TP_API_KEY` | — | Anthropic API key for AI features |
 | `TP_AI_MODEL` | `claude-haiku-4-5-20251001` | AI model override |
 | `TP_AI_TIMEOUT` | `2000` | AI request timeout (ms) |
+| `TP_EXCLUDE_DIRS` | — | Comma-separated path prefixes to ignore (supports `~`) |
 
 ## Project Markers
 

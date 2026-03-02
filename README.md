@@ -61,6 +61,7 @@ Existing tools make you choose: fast-but-dumb or precise-but-manual. `tp` refuse
 
 - **Frecency scoring** — frequency + recency with time-decay weighting that matches or exceeds zoxide
 - **Multi-token fuzzy matching** — `tp foo bar` matches paths containing both tokens
+- **Typo tolerance** — `tp projetcs` still finds `projects` via Damerau-Levenshtein fallback (5+ char queries)
 - **Project awareness** — auto-detection via `.git`, `Cargo.toml`, `package.json`, `go.mod`, and [12 more markers](#project-markers)
 - **Project-scoped search** — `tp -p tests` stays inside your project boundaries
 - **Cross-project switching** — `tp @payments-service` jumps to a known project root
@@ -79,7 +80,7 @@ Existing tools make you choose: fast-but-dumb or precise-but-manual. `tp` refuse
 - **Semantic project indexing** *(coming soon)* — search across projects by concept: `tp the service that handles webhook retries`
 - **Workflow prediction** *(coming soon)* — spots recurring navigation sequences and nudges you toward the next destination
 - **Natural language nav** *(planned)* — `tp the auth service terraform module` resolves even when none of those words appear in the path
-- **Smart aliasing** *(planned)* — suggests memorable waypoint names based on project structure
+- **Smart aliasing** — `tp suggest` recommends waypoint names for your most-visited directories, with optional AI-enhanced naming
 
 ### Pro Tier
 
@@ -114,6 +115,10 @@ Six steps from query to destination. Most trips end at step four.
             │ no
  ┌──────────▼──────────┐
  │  4. Frecency + fuzzy │──▶ score > 0.8 → go  ← 95% of jumps
+ └──────────┬──────────┘
+            │ no matches?
+ ┌──────────▼──────────┐
+ │ 4b. Typo tolerance   │──▶ Damerau-Levenshtein fallback
  └──────────┬──────────┘
             │ too close to call
  ┌──────────▼──────────┐
@@ -206,6 +211,10 @@ tp init <shell>         Shell integration code
 tp init --bootstrap     Bootstrap from history
 tp import --from=zoxide Import from zoxide
 
+tp suggest              Suggest waypoint names for frequent paths
+tp suggest --apply      Interactively apply suggestions
+tp suggest --ai         Use AI for creative waypoint names
+
 tp index [path]         AI: semantic index a project
 tp analyze              AI: extract workflow patterns
 tp --recall             AI: "where was I?" session digest
@@ -229,6 +238,7 @@ All via environment variables. Sane defaults — most users won't need to touch 
 | `TP_API_KEY` | — | Anthropic API key for AI features |
 | `TP_AI_MODEL` | `claude-haiku-4-5-20251001` | AI model override |
 | `TP_AI_TIMEOUT` | `2000` | AI request timeout (ms) |
+| `TP_EXCLUDE_DIRS` | — | Comma-separated path prefixes to ignore (supports `~`) |
 
 ## Project Markers
 
@@ -307,7 +317,7 @@ python3 bench/chart.py   # generate SVG charts
 | Phase | Status | Shipping |
 |-------|--------|----------|
 | **Alpha** | ✅ Complete | Core binary: frecency, project detection, waypoints, 6-shell integration, bootstrap, zoxide import |
-| **Beta** | ✅ Complete | AI reranking (BYOK), TUI picker, session recall, query/remove/doctor commands. 94 tests, CI on 3 platforms. |
+| **Beta** | ✅ Complete | AI reranking (BYOK), TUI picker, session recall, smart aliasing, query/remove/doctor commands. CI on 3 platforms. |
 | **v1.0** | Planned | Semantic project indexing, workflow prediction, natural language nav, VS Code extension. |
 | **Pro** | Planned | Cloud sync, team waypoints, onboarding mode, analytics. |
 
