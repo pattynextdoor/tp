@@ -181,7 +181,11 @@ pub fn query_frecency(
             _ => 1.0,
         };
 
-        let score = decayed * fuzzy * proximity_boost;
+        // Exact last-component matches (fuzzy=1.0) get a strong boost so
+        // that "dev" → ~/dev always beats "dev" → ~/dev/meetingmind (0.7).
+        let exact_boost = if fuzzy >= 1.0 { 10.0 } else { 1.0 };
+
+        let score = decayed * fuzzy * proximity_boost * exact_boost;
 
         candidates.push(Candidate {
             path,
