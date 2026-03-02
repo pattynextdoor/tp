@@ -58,6 +58,17 @@ tp init --bootstrap     Bootstrap from history
 tp import --from=zoxide Import from zoxide
 ```
 
+### Smart Aliasing
+
+Suggest waypoint names based on your most-visited directories:
+
+```
+tp suggest              Show suggested waypoint names
+tp suggest --apply      Interactively apply suggestions
+tp suggest --ai         Use AI for creative names (requires API key)
+tp suggest -n 20        Show more suggestions
+```
+
 ### AI Commands
 
 These commands require an API key. See [AI Features](./ai-features.md) for setup.

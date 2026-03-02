@@ -103,24 +103,23 @@ pub fn navigate(
         .ok()
         .and_then(|p| p.to_str().map(|s| s.to_string()));
     let project_scope = cwd.as_deref().and_then(crate::project::detect_project_root);
-    let mut candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
 
-    // When -p flag is used, filter to only paths within the current project
-    if project_scoped {
-        if let Some(ref scope) = project_scope {
-            candidates.retain(|c| c.path.starts_with(scope.as_str()));
-        }
-    }
-
-    // Step 4b: Typo-tolerant fallback — if fuzzy matching found nothing,
-    // try Damerau-Levenshtein on the last path component
-    if candidates.is_empty() {
-        candidates = frecency::query_frecency_typo(conn, &joined, project_scope.as_deref())?;
+    let apply_project_filter = |candidates: &mut Vec<frecency::Candidate>| {
         if project_scoped {
             if let Some(ref scope) = project_scope {
                 candidates.retain(|c| c.path.starts_with(scope.as_str()));
             }
         }
+    };
+
+    let mut candidates = frecency::query_frecency(conn, &joined, project_scope.as_deref())?;
+    apply_project_filter(&mut candidates);
+
+    // Step 4b: Typo-tolerant fallback — if fuzzy matching found nothing,
+    // try Damerau-Levenshtein on the last path component
+    if candidates.is_empty() {
+        candidates = frecency::query_frecency_typo(conn, &joined, project_scope.as_deref())?;
+        apply_project_filter(&mut candidates);
     }
 
     if let Some(best) = candidates.first() {

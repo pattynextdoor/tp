@@ -357,6 +357,12 @@ pub fn run() -> Result<()> {
                             eprintln!("  Directories: {}", dir_count);
                             eprintln!("  Waypoints:   {}", wp_count);
                             eprintln!("  Sessions:    {}", sess_count);
+
+                            // Suggestion hint
+                            let suggestion_n = crate::nav::suggest::suggestion_count(&conn);
+                            if suggestion_n > 0 {
+                                eprintln!("  Suggestions: {} (run `tp suggest`)", suggestion_n);
+                            }
                         } else {
                             eprintln!("  (not created yet — navigate once to initialize)");
                         }
@@ -407,24 +413,6 @@ pub fn run() -> Result<()> {
                 }
                 if let Ok(exclude) = std::env::var("TP_EXCLUDE_DIRS") {
                     eprintln!("  TP_EXCLUDE_DIRS: {}", exclude);
-                }
-
-                // Suggestion hint — only shown when database exists and has suggestions
-                if let Ok(p) = db::db_path() {
-                    if p.exists() {
-                        if let Ok(conn) = db::open() {
-                            let count = crate::nav::suggest::suggestion_count(&conn);
-                            if count > 0 {
-                                eprintln!();
-                                eprintln!("Suggestions:");
-                                eprintln!(
-                                    "  Run `tp suggest` — {} frequently visited path{} could be waypoints",
-                                    count,
-                                    if count == 1 { "" } else { "s" }
-                                );
-                            }
-                        }
-                    }
                 }
 
                 Ok(())

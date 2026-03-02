@@ -62,6 +62,18 @@ tp analyze
 
 Spots recurring navigation sequences and nudges you toward the next likely destination. For example, if you frequently go from `src/api` to `tests/api` to `docs/api`, it learns that pattern and suggests optimizations (e.g., waypoints you should create, projects you frequently switch between).
 
+### Smart Aliasing
+
+Analyzes your visit history and suggests waypoint names for frequently visited directories:
+
+```sh
+tp suggest              # show suggestions
+tp suggest --apply      # interactively apply them
+tp suggest --ai         # use AI for creative names
+```
+
+Names are generated deterministically from path structure — generic components like `src/` are combined with their parent. With `--ai`, Claude Haiku suggests more memorable names. Suggestions are always presented for confirmation.
+
 ## Planned
 
 ### Natural Language Navigation
@@ -73,10 +85,6 @@ tp the auth service terraform module
 ```
 
 The AI layer will resolve intent by considering your project structure, not just string matching.
-
-### Smart Aliasing
-
-Based on your project structure, AI will suggest memorable waypoint names for directories you visit often. Suggestions will always be presented for your confirmation — nothing auto-applied.
 
 ## Privacy
 
