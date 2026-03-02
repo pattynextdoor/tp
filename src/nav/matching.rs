@@ -2,7 +2,7 @@ use strsim::damerau_levenshtein;
 
 /// Extract the last component of a path, handling both `/` and `\` separators.
 fn last_path_component(path: &str) -> &str {
-    path.rsplit(|c: char| c == '/' || c == '\\')
+    path.rsplit(['/', '\\'])
         .next()
         .unwrap_or(path)
 }

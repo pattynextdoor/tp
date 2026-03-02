@@ -140,30 +140,37 @@ pub fn rerank(query: &str, candidates: &[crate::nav::frecency::Candidate]) -> Op
         ]
     });
 
+    let spinner = crate::style::Spinner::start("consulting the oracle...");
+
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_millis(timeout_ms))
         .build()
-        .ok()?;
+        .ok();
 
-    let resp = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", &api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .ok()?;
+    let result = (|| -> Option<String> {
+        let resp = client?
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .ok()?;
 
-    let json: serde_json::Value = resp.json().ok()?;
-    let text = json["content"][0]["text"].as_str()?;
-    let index: usize = text.trim().parse().ok()?;
+        let json: serde_json::Value = resp.json().ok()?;
+        let text = json["content"][0]["text"].as_str()?;
+        let index: usize = text.trim().parse().ok()?;
 
-    let chosen = top.get(index)?;
+        let chosen = top.get(index)?;
 
-    // Cache the result so we don't call the API again for the same query.
-    cache::set(&cache_key, &chosen.path);
+        // Cache the result so we don't call the API again for the same query.
+        cache::set(&cache_key, &chosen.path);
 
-    Some(chosen.path.clone())
+        Some(chosen.path.clone())
+    })();
+
+    spinner.stop();
+    result
 }
 
 /// Fallback when the `ai` feature is disabled: always returns `None`.

@@ -76,23 +76,30 @@ fn call_ai_summary(api_key: &str, stats_text: &str) -> Option<String> {
         ]
     });
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .ok()?;
+    let spinner = crate::style::Spinner::start("recalling your session...");
 
-    let resp = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .ok()?;
+    let result = (|| -> Option<String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .ok()?;
 
-    let json: serde_json::Value = resp.json().ok()?;
-    let text = json["content"][0]["text"].as_str()?;
-    Some(text.to_string())
+        let resp = client
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .ok()?;
+
+        let json: serde_json::Value = resp.json().ok()?;
+        let text = json["content"][0]["text"].as_str()?;
+        Some(text.to_string())
+    })();
+
+    spinner.stop();
+    result
 }
 
 /// AI-powered session recall.

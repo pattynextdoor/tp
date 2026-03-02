@@ -5,6 +5,8 @@ mod import;
 mod nav;
 mod project;
 mod shell;
+#[allow(dead_code)]
+mod style;
 
 #[cfg(feature = "ai")]
 mod ai;

@@ -1,3 +1,5 @@
+pub mod stats;
+
 use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
@@ -19,7 +21,9 @@ use crate::nav::matching;
 /// Display-friendly representation of a candidate directory.
 struct CandidateDisplay {
     path: String,
+    score: f64,
     project_name: Option<String>,
+    project_kind: Option<String>,
     git_branch: Option<String>,
     relative_time: String,
 }
@@ -54,11 +58,19 @@ impl App {
                 let git_branch = get_git_branch(&c.path)
                     .or_else(|| c.project_root.as_deref().and_then(get_git_branch));
 
+                let project_kind = c
+                    .project_root
+                    .as_deref()
+                    .and_then(crate::project::project_kind)
+                    .map(|s| s.to_string());
+
                 let relative_time = format_relative_time(c.last_access, now);
 
                 CandidateDisplay {
                     path: c.path.clone(),
+                    score: c.score,
                     project_name,
+                    project_kind,
                     git_branch,
                     relative_time,
                 }
@@ -249,12 +261,27 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .split(f.area());
 
     // --- Input area ---
-    let input_text = format!("> {}", app.input);
+    let input_color = if app.filtered.is_empty() && !app.input.is_empty() {
+        Color::Red
+    } else if !app.input.is_empty() {
+        Color::Green
+    } else {
+        Color::White
+    };
+    let input_text = Line::from(vec![
+        Span::styled("> ", Style::default().fg(Color::Cyan)),
+        Span::styled(&app.input, Style::default().fg(input_color)),
+    ]);
     let input_paragraph =
         Paragraph::new(input_text).block(Block::default().borders(Borders::ALL).title(" tp "));
     f.render_widget(input_paragraph, chunks[0]);
 
     // --- Candidate list ---
+    let max_score = app.filtered.first()
+        .map(|&idx| app.all_candidates[idx].score)
+        .unwrap_or(1.0)
+        .max(0.001);
+
     let items: Vec<ListItem> = app
         .filtered
         .iter()
@@ -263,24 +290,43 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             let c = &app.all_candidates[idx];
             let is_selected = app.list_state.selected() == Some(i);
 
+            // Fade candidates that score less than 20% of the top result
+            let is_faded = !is_selected && (c.score / max_score) < 0.2;
+
             let prefix = if is_selected { "→ " } else { "  " };
             let path_style = if is_selected {
                 Style::default()
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD)
+            } else if is_faded {
+                Style::default().fg(Color::DarkGray)
             } else {
                 Style::default().fg(Color::White)
             };
 
-            let line1 = Line::from(vec![
-                Span::raw(prefix),
-                Span::styled(c.path.clone(), path_style),
-            ]);
+            // Dim home prefix, highlight the unique part
+            let home = std::env::var("HOME").unwrap_or_default();
+            let path_spans = if !home.is_empty() && c.path.starts_with(&home) {
+                let rest = &c.path[home.len()..];
+                vec![
+                    Span::raw(prefix),
+                    Span::styled("~", Style::default().fg(Color::DarkGray)),
+                    Span::styled(rest.to_string(), path_style),
+                ]
+            } else {
+                vec![
+                    Span::raw(prefix),
+                    Span::styled(c.path.clone(), path_style),
+                ]
+            };
 
-            // Build metadata pieces: project name · git branch · relative time
+            let line1 = Line::from(path_spans);
+
+            // Build metadata pieces: icon project name · git branch · relative time
             let mut meta_parts: Vec<String> = Vec::new();
             if let Some(ref name) = c.project_name {
-                meta_parts.push(name.clone());
+                let icon = crate::style::project_icon(c.project_kind.as_deref());
+                meta_parts.push(format!("{} {}", icon, name));
             }
             if let Some(ref branch) = c.git_branch {
                 meta_parts.push(branch.clone());
@@ -300,14 +346,27 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     f.render_stateful_widget(list, chunks[1], &mut app.list_state);
 
     // --- Status bar ---
-    let status = Paragraph::new(Line::from(Span::styled(
-        format!(
-            "{}/{} matches",
-            app.filtered.len(),
-            app.all_candidates.len()
+    let status = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!(" {}/{} ", app.filtered.len(), app.all_candidates.len()),
+            Style::default().fg(Color::Cyan),
         ),
-        Style::default().fg(Color::DarkGray),
-    )));
+        Span::styled(
+            "↑↓",
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" navigate  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "⏎",
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" select  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            "esc",
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" cancel", Style::default().fg(Color::DarkGray)),
+    ]));
     f.render_widget(status, chunks[2]);
 }
 

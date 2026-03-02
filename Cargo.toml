@@ -25,6 +25,7 @@ shellexpand = "3"
 anyhow = "1"
 strsim = "0.11"
 thiserror = "1"
+libc = "0.2"
 
 # Feature-gated
 ratatui = { version = "0.28", optional = true }

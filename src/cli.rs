@@ -107,6 +107,10 @@ pub enum Commands {
         steps: usize,
     },
 
+    /// Show navigation statistics dashboard
+    #[cfg(feature = "tui")]
+    Stats,
+
     /// Generate shell completions
     Completions {
         /// Shell to generate completions for
@@ -156,6 +160,53 @@ pub enum Commands {
         #[arg(short = 'n', long, default_value = "10")]
         count: usize,
     },
+}
+
+/// Get the current git branch for a directory.
+fn get_git_branch(path: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["-C", path, "rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        None
+    } else {
+        Some(branch)
+    }
+}
+
+/// Find the closest matching directory name for a "did you mean?" suggestion.
+fn suggest_closest(conn: &Connection, query: &str) -> Result<String> {
+    let candidates = frecency::query_all(conn, 50)?;
+    let query_lower = query.to_lowercase();
+
+    let mut best: Option<(usize, String)> = None;
+
+    for c in &candidates {
+        let basename = c.path
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(&c.path)
+            .to_lowercase();
+
+        let dist = strsim::damerau_levenshtein(&query_lower, &basename);
+
+        // Only suggest if reasonably close (distance <= half the query length + 1)
+        let max_dist = (query_lower.len() / 2) + 1;
+        if dist <= max_dist
+            && (best.is_none() || dist < best.as_ref().unwrap().0) {
+                best = Some((dist, basename));
+            }
+    }
+
+    best.map(|(_, name)| name)
+        .ok_or_else(|| anyhow::anyhow!("no suggestion"))
 }
 
 /// Print dynamic completion candidates for the given prefix.
@@ -271,16 +322,84 @@ pub fn run() -> Result<()> {
                 if candidates.is_empty() {
                     eprintln!("No directories tracked yet. Navigate around to build history.");
                 } else {
-                    for c in &candidates {
-                        let project = c
-                            .project_root
-                            .as_deref()
-                            .and_then(|p| std::path::Path::new(p).file_name())
-                            .map(|n| format!(" [{}]", n.to_string_lossy()))
-                            .unwrap_or_default();
-                        eprintln!("{:>8.1}  {}{}", c.score, c.path, project);
+                    let color = crate::style::use_color();
+                    let max_score = candidates
+                        .first()
+                        .map(|c| c.score)
+                        .unwrap_or(1.0);
+
+                    if color {
+                        // Group by project
+                        let mut groups: Vec<(Option<String>, Vec<&frecency::Candidate>)> = Vec::new();
+                        for c in &candidates {
+                            let proj = c.project_root.as_deref()
+                                .and_then(|p| std::path::Path::new(p).file_name())
+                                .map(|n| n.to_string_lossy().to_string());
+
+                            if let Some(group) = groups.iter_mut().find(|(name, _)| *name == proj) {
+                                group.1.push(c);
+                            } else {
+                                groups.push((proj, vec![c]));
+                            }
+                        }
+
+                        for (project_name, dirs) in &groups {
+                            // Project header
+                            if let Some(name) = project_name {
+                                let kind = dirs.first()
+                                    .and_then(|c| c.project_root.as_deref())
+                                    .and_then(crate::project::project_kind);
+                                let icon = crate::style::project_icon(kind);
+                                let branch = dirs.first()
+                                    .and_then(|c| c.project_root.as_deref())
+                                    .and_then(get_git_branch);
+                                let branch_str = branch
+                                    .map(|b| format!(" {}({}){}", crate::style::DIM, b, crate::style::RESET))
+                                    .unwrap_or_default();
+
+                                eprintln!(
+                                    "\n  {}{}{} {}{}{}",
+                                    crate::style::BOLD, crate::style::CYAN,
+                                    icon, name, branch_str, crate::style::RESET
+                                );
+                            } else {
+                                eprintln!(
+                                    "\n  {}{}📁 other{}",
+                                    crate::style::BOLD, crate::style::GRAY, crate::style::RESET
+                                );
+                            }
+
+                            for c in dirs {
+                                let sc = crate::style::score_color(c.score);
+                                let bar = crate::style::score_bar(c.score, max_score);
+                                let time = crate::style::relative_time(c.last_access);
+                                let path = crate::style::styled_path(&c.path);
+
+                                eprintln!(
+                                    "    {}{:>6.1}{} {} {}{} {}{}{}",
+                                    sc, c.score, crate::style::RESET,
+                                    bar, path, crate::style::RESET,
+                                    crate::style::GRAY, time, crate::style::RESET,
+                                );
+                            }
+                        }
+                        eprintln!();
+                    } else {
+                        for c in &candidates {
+                            let project = c.project_root.as_deref()
+                                .and_then(|p| std::path::Path::new(p).file_name())
+                                .map(|n| format!(" [{}]", n.to_string_lossy()))
+                                .unwrap_or_default();
+                            eprintln!("{:>8.1}  {}{}", c.score, c.path, project);
+                        }
                     }
                 }
+                Ok(())
+            }
+            #[cfg(feature = "tui")]
+            Commands::Stats => {
+                let conn = db::open()?;
+                crate::tui::stats::show_stats(&conn)?;
                 Ok(())
             }
             Commands::Completions { shell } => {
@@ -555,11 +674,30 @@ pub fn run() -> Result<()> {
 
     match crate::nav::navigate(&conn, &cli.query, interactive, cli.project_scoped)? {
         Some(result) => {
+            // Teleport effect on stderr (visual feedback)
+            crate::style::teleport_effect(&result.path, &result.match_type);
             // Print path to stdout — the shell wrapper captures this and does `cd`
             println!("{}", result.path);
         }
         None => {
-            eprintln!("No match found for: {}", cli.query.join(" "));
+            let query_str = cli.query.join(" ");
+            if crate::style::use_color() {
+                eprint!(
+                    "  {}🔍 nothing matched \"{}\"{}", 
+                    crate::style::YELLOW, query_str, crate::style::RESET
+                );
+                // Try to suggest a close match
+                if let Ok(suggestion) = suggest_closest(&conn, &query_str) {
+                    eprintln!(
+                        " — {}did you mean \"{}\"?{}",
+                        crate::style::DIM, suggestion, crate::style::RESET
+                    );
+                } else {
+                    eprintln!();
+                }
+            } else {
+                eprintln!("No match found for: {}", query_str);
+            }
             std::process::exit(1);
         }
     }

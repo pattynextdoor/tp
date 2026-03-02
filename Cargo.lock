@@ -1682,6 +1682,7 @@ dependencies = [
  "clap_complete",
  "crossterm",
  "dirs 5.0.1",
+ "libc",
  "ratatui",
  "reqwest",
  "rusqlite",

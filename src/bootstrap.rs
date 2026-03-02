@@ -40,18 +40,22 @@ pub fn auto_bootstrap(conn: &Connection) -> Result<bool> {
     let mut total = 0u64;
 
     // 1. Import from zoxide if available
-    total += import_from_zoxide(conn).unwrap_or(0);
+    let zoxide_count = import_from_zoxide(conn).unwrap_or(0);
+    total += zoxide_count;
 
     // 2. Parse shell history for cd commands
-    total += import_from_shell_history(conn).unwrap_or(0);
+    let history_count = import_from_shell_history(conn).unwrap_or(0);
+    total += history_count;
 
     // 3. Discover projects under home directory
-    total += discover_projects(conn).unwrap_or(0);
+    let project_count = discover_projects(conn).unwrap_or(0);
+    total += project_count;
 
     if total > 0 {
-        eprintln!(
-            "tp: indexed {} directories from your history. Ready.",
-            total
+        crate::style::welcome_message(
+            history_count as usize,
+            zoxide_count as usize,
+            project_count as usize,
         );
     }
 
