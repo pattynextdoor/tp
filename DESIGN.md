@@ -15,7 +15,7 @@ Six steps from query to destination. Most trips end at step four.
  └──────────┬──────────┘
             │ no
  ┌──────────▼──────────┐
- │  2. Waypoint (!)?    │──▶ jump to pin
+ │  2. Waypoint (:)?    │──▶ jump to pin
  └──────────┬──────────┘
             │ no
  ┌──────────▼──────────┐
