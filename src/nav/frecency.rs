@@ -3,6 +3,24 @@ use rusqlite::Connection;
 
 use super::matching;
 
+/// Read `TP_EXCLUDE_DIRS` env var and return expanded path prefixes.
+/// The var is comma-separated; `~` is expanded via shellexpand.
+fn excluded_prefixes() -> Vec<String> {
+    match std::env::var("TP_EXCLUDE_DIRS") {
+        Ok(val) if !val.is_empty() => val
+            .split(',')
+            .map(|s| shellexpand::tilde(s.trim()).to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Check if a path starts with any excluded prefix.
+fn is_excluded(path: &str, prefixes: &[String]) -> bool {
+    prefixes.iter().any(|prefix| path.starts_with(prefix))
+}
+
 /// A candidate directory returned from a frecency query.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -40,6 +58,11 @@ pub fn calculate_frecency(access_count: i64, last_access: i64, now: i64) -> f64 
 /// increments its access count, and logs a session entry.
 /// Triggers aging if total score exceeds 10,000.
 pub fn record_visit(conn: &Connection, path: &str, project_root: Option<&str>) -> Result<()> {
+    let excluded = excluded_prefixes();
+    if is_excluded(path, &excluded) {
+        return Ok(());
+    }
+
     let tx = conn.unchecked_transaction()?;
 
     let now = std::time::SystemTime::now()
@@ -175,6 +198,11 @@ pub fn query_frecency(
         prune_paths(conn, &dead_paths)?;
     }
 
+    let excluded = excluded_prefixes();
+    if !excluded.is_empty() {
+        candidates.retain(|c| !is_excluded(&c.path, &excluded));
+    }
+
     candidates.sort_by(|a, b| {
         b.score
             .partial_cmp(&a.score)
@@ -199,6 +227,88 @@ fn prune_paths(conn: &Connection, paths: &[String]) -> Result<()> {
         conn.execute("DELETE FROM sessions WHERE to_path = ?1", [path])?;
     }
     Ok(())
+}
+
+/// Typo-tolerant fallback query. Scans all paths in the database and scores
+/// them with Damerau-Levenshtein distance. Only called when `query_frecency`
+/// returns zero results.
+pub fn query_frecency_typo(
+    conn: &Connection,
+    query: &str,
+    project_scope: Option<&str>,
+) -> Result<Vec<Candidate>> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+
+    let mut stmt = conn.prepare(
+        "SELECT path, frecency, last_access, access_count, project_root
+         FROM directories
+         ORDER BY frecency DESC
+         LIMIT 500",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, f64>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        ))
+    })?;
+
+    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut dead_paths: Vec<String> = Vec::new();
+
+    for row in rows {
+        let (path, frecency, last_access, access_count, project_root) = row?;
+
+        if !std::path::Path::new(&path).exists() {
+            dead_paths.push(path);
+            continue;
+        }
+
+        let typo = matching::typo_score(query, &path);
+        if typo == 0.0 {
+            continue;
+        }
+
+        let decayed = calculate_frecency(access_count, last_access, now);
+
+        let proximity_boost = match (&project_root, project_scope) {
+            (Some(pr), Some(scope)) if pr == scope => 1.5,
+            _ => 1.0,
+        };
+
+        let score = decayed * typo * proximity_boost;
+
+        candidates.push(Candidate {
+            path,
+            score,
+            frecency,
+            last_access,
+            access_count,
+            project_root,
+        });
+    }
+
+    if !dead_paths.is_empty() {
+        prune_paths(conn, &dead_paths)?;
+    }
+
+    let excluded = excluded_prefixes();
+    if !excluded.is_empty() {
+        candidates.retain(|c| !is_excluded(&c.path, &excluded));
+    }
+
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(candidates)
 }
 
 /// Query all directories ordered by frecency, pruning dead paths.
@@ -250,6 +360,11 @@ pub fn query_all(conn: &Connection, limit: usize) -> Result<Vec<Candidate>> {
 
     if !dead_paths.is_empty() {
         prune_paths(conn, &dead_paths)?;
+    }
+
+    let excluded = excluded_prefixes();
+    if !excluded.is_empty() {
+        candidates.retain(|c| !is_excluded(&c.path, &excluded));
     }
 
     candidates.sort_by(|a, b| {
@@ -384,5 +499,81 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count_after, 0);
+    }
+
+    #[test]
+    fn test_excluded_prefixes_empty() {
+        std::env::remove_var("TP_EXCLUDE_DIRS");
+        let prefixes = excluded_prefixes();
+        assert!(prefixes.is_empty());
+    }
+
+    #[test]
+    fn test_excluded_prefixes_parses() {
+        std::env::set_var("TP_EXCLUDE_DIRS", "/tmp,/var/folders");
+        let prefixes = excluded_prefixes();
+        assert!(prefixes.contains(&"/tmp".to_string()));
+        assert!(prefixes.contains(&"/var/folders".to_string()));
+        std::env::remove_var("TP_EXCLUDE_DIRS");
+    }
+
+    #[test]
+    fn test_is_excluded() {
+        let prefixes = vec!["/tmp".to_string(), "/var/folders".to_string()];
+        assert!(is_excluded("/tmp/foo/bar", &prefixes));
+        assert!(is_excluded("/var/folders/abc", &prefixes));
+        assert!(!is_excluded("/home/user/projects", &prefixes));
+    }
+
+    #[test]
+    fn test_record_visit_excludes() {
+        std::env::set_var("TP_EXCLUDE_DIRS", "/excluded");
+        let conn = db::open_memory().unwrap();
+        record_visit(&conn, "/excluded/something", None).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM directories", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "excluded path should not be recorded");
+        std::env::remove_var("TP_EXCLUDE_DIRS");
+    }
+
+    #[test]
+    fn test_query_frecency_excludes() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+
+        let good_dir = tmp.path().join("projects");
+        let bad_dir = tmp.path().join("excluded");
+        std::fs::create_dir(&good_dir).unwrap();
+        std::fs::create_dir(&bad_dir).unwrap();
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        conn.execute(
+            "INSERT INTO directories (path, frecency, last_access, access_count)
+             VALUES (?1, 10.0, ?2, 5)",
+            rusqlite::params![good_dir.to_str().unwrap(), now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO directories (path, frecency, last_access, access_count)
+             VALUES (?1, 10.0, ?2, 5)",
+            rusqlite::params![bad_dir.to_str().unwrap(), now],
+        )
+        .unwrap();
+
+        std::env::set_var("TP_EXCLUDE_DIRS", bad_dir.to_str().unwrap());
+        let results = query_frecency(&conn, "e", None).unwrap();
+        assert!(
+            !results
+                .iter()
+                .any(|c| c.path.starts_with(bad_dir.to_str().unwrap())),
+            "excluded paths should not appear in results"
+        );
+        std::env::remove_var("TP_EXCLUDE_DIRS");
     }
 }
