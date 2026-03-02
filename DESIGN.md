@@ -1,6 +1,66 @@
 # Design
 
-Technical decisions and why they were made.
+Technical decisions, architecture, and benchmarks.
+
+## Query Resolution
+
+Six steps from query to destination. Most trips end at step four.
+
+```
+ Query
+   │
+   ▼
+ ┌─────────────────────┐
+ │  1. Exact/relative?  │──▶ cd directly
+ └──────────┬──────────┘
+            │ no
+ ┌──────────▼──────────┐
+ │  2. Waypoint (!)?    │──▶ jump to pin
+ └──────────┬──────────┘
+            │ no
+ ┌──────────▼──────────┐
+ │  3. Project (@)?     │──▶ project root
+ └──────────┬──────────┘
+            │ no
+ ┌──────────▼──────────┐
+ │  4. Frecency + fuzzy │──▶ score > 0.8 → go  ← 95% of jumps
+ └──────────┬──────────┘
+            │ close call?
+ ┌──────────▼──────────┐
+ │ 4b. Typo tolerance   │──▶ Damerau-Levenshtein fallback
+ └──────────┬──────────┘
+            │ still too close
+ ┌──────────▼──────────┐
+ │  5. BYOK reranking   │──▶ ~150 tokens, <300ms
+ └──────────┬──────────┘
+            │ ¯\_(ツ)_/¯
+ ┌──────────▼──────────┐
+ │  6. TUI picker       │──▶ you choose
+ └─────────────────────┘
+```
+
+AI is a tiebreaker, not a crutch. Navigation should never wait on a network request unless it genuinely doesn't know where you want to go.
+
+## Architecture
+
+<p align="center">
+<img src="docs/architecture.svg" alt="tp architecture diagram" width="574" />
+</p>
+
+- **Core** — Rust, <5MB binary, <5ms navigation
+- **Database** — SQLite with WAL mode, auto-migrations, indexed
+- **TUI & reranking** — compile-time feature flags (`--features ai,tui`), both on by default
+- **Local-first** — fully functional offline. Network features are opt-in fallbacks, never the hot path.
+
+## Project Markers
+
+tp walks up the directory tree looking for these files to detect project boundaries:
+
+`.git` `Cargo.toml` `package.json` `go.mod` `pyproject.toml` `setup.py` `Gemfile` `pom.xml` `build.gradle` `CMakeLists.txt` `Makefile` `.project` `composer.json` `mix.exs` `deno.json` `flake.nix`
+
+---
+
+## Technical Decisions
 
 ## Frecency: bucketed time decay
 
@@ -178,3 +238,47 @@ periodic normalization so scores reflect current relevance. 10,000
 triggers aging roughly every couple months for a heavy user (~50
 cd's/day). The 30-day grace period on pruning prevents deleting
 seasonal paths — like a tax directory you only touch in April.
+
+## Benchmark Charts
+
+Measured with [hyperfine](https://github.com/sharkdp/hyperfine) on a MacBook Pro M4 Pro, 200+ runs each.
+
+### Core queries (500 entries, flat seeding)
+
+Raw query speed with 1 visit per path.
+
+<p align="center">
+<img src="bench/charts/core.svg" alt="Core benchmarks" width="600" />
+</p>
+
+### Realistic visit patterns (hot/warm/cold)
+
+300 directories with varied visit counts: 50 "hot" paths (20 visits), 100 "warm" (5 visits), 150 "cold" (1 visit).
+
+<p align="center">
+<img src="bench/charts/varied.svg" alt="Varied visit pattern benchmarks" width="600" />
+</p>
+
+### Stale path handling
+
+200 directories, 40% deleted after seeding. tp validates paths on every query and self-heals — extra I/O, but your results are always clean.
+
+<p align="center">
+<img src="bench/charts/stale.svg" alt="Stale path benchmarks" width="600" />
+</p>
+
+### Scale (5,000 entries)
+
+<p align="center">
+<img src="bench/charts/scale.svg" alt="Scale benchmarks" width="600" />
+</p>
+
+> tp's `add` does more work — it detects project roots by walking up the tree and logs session data. That's the cost of project-scoped search and session recall.
+
+Run them yourself:
+
+```sh
+cargo build --release
+./bench/bench.sh
+python3 bench/chart.py   # generate SVG charts
+```
