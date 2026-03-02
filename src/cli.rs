@@ -141,6 +141,21 @@ pub enum Commands {
 
     /// AI: extract workflow patterns from navigation history (coming soon)
     Analyze,
+
+    /// Suggest waypoint names for frequently visited directories
+    Suggest {
+        /// Interactively apply suggested waypoints
+        #[arg(long)]
+        apply: bool,
+
+        /// Use AI to generate creative waypoint names
+        #[arg(long)]
+        ai: bool,
+
+        /// Number of suggestions to show
+        #[arg(short = 'n', long, default_value = "10")]
+        count: usize,
+    },
 }
 
 /// Print dynamic completion candidates for the given prefix.
@@ -337,7 +352,11 @@ pub fn run() -> Result<()> {
             Commands::Query { terms, score } => {
                 let conn = db::open()?;
                 let joined = terms.join(" ");
-                let candidates = frecency::query_frecency(&conn, &joined, None)?;
+                let mut candidates = frecency::query_frecency(&conn, &joined, None)?;
+                // Typo-tolerant fallback when fuzzy matching finds nothing
+                if candidates.is_empty() {
+                    candidates = frecency::query_frecency_typo(&conn, &joined, None)?;
+                }
                 if candidates.is_empty() {
                     std::process::exit(1);
                 }
@@ -428,6 +447,24 @@ pub fn run() -> Result<()> {
                     eprintln!("  TP_EXCLUDE_DIRS: {}", exclude);
                 }
 
+                // Suggestion hint — only shown when database exists and has suggestions
+                if let Ok(p) = db::db_path() {
+                    if p.exists() {
+                        if let Ok(conn) = db::open() {
+                            let count = crate::nav::suggest::suggestion_count(&conn);
+                            if count > 0 {
+                                eprintln!();
+                                eprintln!("Suggestions:");
+                                eprintln!(
+                                    "  Run `tp suggest` — {} frequently visited path{} could be waypoints",
+                                    count,
+                                    if count == 1 { "" } else { "s" }
+                                );
+                            }
+                        }
+                    }
+                }
+
                 Ok(())
             }
             Commands::Index { path } => {
@@ -480,6 +517,24 @@ pub fn run() -> Result<()> {
                 {
                     eprintln!("AI features are not enabled. Rebuild with --features ai");
                 }
+                Ok(())
+            }
+            Commands::Suggest { apply, ai, count } => {
+                let conn = db::open()?;
+                let mut suggestions = crate::nav::suggest::generate_suggestions(&conn, *count)?;
+
+                if *ai {
+                    crate::nav::suggest::ai_enhance_names(&mut suggestions);
+                }
+
+                if *apply {
+                    crate::nav::suggest::display_suggestions(&suggestions);
+                    eprintln!();
+                    crate::nav::suggest::apply_suggestions(&conn, &suggestions)?;
+                } else {
+                    crate::nav::suggest::display_suggestions(&suggestions);
+                }
+
                 Ok(())
             }
         };
