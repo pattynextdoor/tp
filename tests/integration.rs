@@ -344,9 +344,7 @@ fn test_exclude_dirs_filtering() {
 #[test]
 fn test_back_empty_history() {
     let tmp = tempfile::tempdir().unwrap();
-    // Seed DB so it exists
-    run_tp(tmp.path(), &["add", "/tmp"]);
-
+    // No visits recorded — back should report empty history
     let (_, stderr, code) = run_tp(tmp.path(), &["back"]);
     assert_ne!(code, 0);
     assert!(stderr.contains("No navigation history"));

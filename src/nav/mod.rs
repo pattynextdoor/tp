@@ -174,7 +174,7 @@ pub fn navigate(
 }
 
 /// Navigate back N steps in session history.
-/// Looks at the sessions table for recent from_path entries,
+/// Walks backward through `to_path` entries in the sessions table,
 /// skipping the current directory, dead paths, and deduplicating.
 pub fn navigate_back(conn: &Connection, steps: usize) -> Result<Option<String>> {
     let cwd = std::env::current_dir()
@@ -182,8 +182,8 @@ pub fn navigate_back(conn: &Connection, steps: usize) -> Result<Option<String>> 
         .unwrap_or_default();
 
     let mut stmt = conn.prepare(
-        "SELECT DISTINCT from_path FROM sessions
-         WHERE from_path IS NOT NULL AND from_path != ''
+        "SELECT to_path FROM sessions
+         WHERE to_path IS NOT NULL AND to_path != ''
          ORDER BY timestamp DESC
          LIMIT 100",
     )?;
@@ -380,17 +380,19 @@ mod tests {
         std::fs::create_dir(&dir_a).unwrap();
         std::fs::create_dir(&dir_b).unwrap();
 
+        // Simulate: user visited A, then B (shell hook records to_path)
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![dir_a.to_str().unwrap(), dir_b.to_str().unwrap()],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![dir_a.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![dir_b.to_str().unwrap(), dir_a.to_str().unwrap()],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![dir_b.to_str().unwrap()],
         )
         .unwrap();
 
+        // back(1) should return the most recent to_path that isn't cwd
         let result = navigate_back(&conn, 1).unwrap();
         assert!(result.is_some());
     }
@@ -406,22 +408,24 @@ mod tests {
         std::fs::create_dir(&dir_b).unwrap();
         std::fs::create_dir(&dir_c).unwrap();
 
+        // Simulate: user visited A → B → C
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![dir_a.to_str().unwrap(), dir_b.to_str().unwrap()],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![dir_a.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![dir_b.to_str().unwrap(), dir_c.to_str().unwrap()],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![dir_b.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![dir_c.to_str().unwrap(), dir_a.to_str().unwrap()],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![dir_c.to_str().unwrap()],
         )
         .unwrap();
 
+        // back(2) should go past C and B, returning B (the 2nd most recent)
         let result = navigate_back(&conn, 2).unwrap();
         assert!(result.is_some());
     }
@@ -433,10 +437,11 @@ mod tests {
         let dir_a = tmp.path().join("a");
         std::fs::create_dir(&dir_a).unwrap();
 
+        // Simulate: user visited dir_a 5 times (e.g. prompt hook firing repeatedly)
         for _ in 0..5 {
             conn.execute(
-                "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-                rusqlite::params![dir_a.to_str().unwrap(), "/tmp/whatever"],
+                "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+                rusqlite::params![dir_a.to_str().unwrap()],
             )
             .unwrap();
         }
@@ -454,17 +459,19 @@ mod tests {
         let good = tmp.path().join("good");
         std::fs::create_dir(&good).unwrap();
 
+        // Dead path visited more recently, good path visited earlier
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params![good.to_str().unwrap(), "/tmp/whatever"],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params![good.to_str().unwrap()],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
-            rusqlite::params!["/nonexistent/dead/path", "/tmp/whatever"],
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (NULL, ?1, 'visit')",
+            rusqlite::params!["/nonexistent/dead/path"],
         )
         .unwrap();
 
+        // back(1) should skip the dead path and return the good one
         let result = navigate_back(&conn, 1).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap(), good.to_str().unwrap());
