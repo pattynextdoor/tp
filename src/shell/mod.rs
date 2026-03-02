@@ -47,7 +47,7 @@ fi
 # Dynamic tab completion
 __{cmd}_completions() {{
     local cur="${{COMP_WORDS[COMP_CWORD]}}"
-    if [[ "$cur" == !* ]] || [[ "$cur" == @* ]] || [[ -n "$cur" ]]; then
+    if [[ "$cur" == :* ]] || [[ "$cur" == @* ]] || [[ -n "$cur" ]]; then
         COMPREPLY=($(command tp --complete "$cur" 2>/dev/null))
     else
         COMPREPLY=($(command tp --complete "" 2>/dev/null))
@@ -63,7 +63,6 @@ fn generate_zsh(cmd: &str) -> String {
     format!(
         r#"# tp shell integration for zsh
 {cmd}() {{
-    setopt localoptions NO_BANG_HIST
     local result
     result="$(command tp "$@")"
     if [[ -d "$result" ]]; then

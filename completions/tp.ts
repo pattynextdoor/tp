@@ -18,8 +18,8 @@ const completionSpec: Fig.Spec = {
           .filter(Boolean)
           .map((line) => ({
             name: line,
-            description: line.startsWith("!") ? "Waypoint" : line.startsWith("@") ? "Project" : "Directory",
-            icon: line.startsWith("!") ? "📌" : line.startsWith("@") ? "📁" : "📂",
+            description: line.startsWith(":") ? "Waypoint" : line.startsWith("@") ? "Project" : "Directory",
+            icon: line.startsWith(":") ? "📌" : line.startsWith("@") ? "📁" : "📂",
           })),
     },
   },
@@ -47,13 +47,13 @@ const completionSpec: Fig.Spec = {
         name: "name",
         description: "Waypoint name to remove",
         generators: {
-          script: ["tp", "--complete", "!"],
+          script: ["tp", "--complete", ":"],
           postProcess: (output) =>
             output
               .trim()
               .split("\n")
               .filter(Boolean)
-              .map((line) => ({ name: line.replace(/^!/, ""), icon: "📌" })),
+              .map((line) => ({ name: line.replace(/^:/, ""), icon: "📌" })),
         },
       },
     },

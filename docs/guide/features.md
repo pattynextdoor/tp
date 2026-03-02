@@ -41,7 +41,7 @@ Pin directories you visit often:
 
 ```sh
 tp --mark deploy ~/infra/k8s/deploy    # create a waypoint
-tp !deploy                              # instant jump
+tp :deploy                              # instant jump
 tp --waypoints                          # list all waypoints
 tp --unmark deploy                      # remove a waypoint
 ```

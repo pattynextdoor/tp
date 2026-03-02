@@ -16,7 +16,7 @@ The architecture diagram is available in the [GitHub repository](https://github.
 When you type `tp <query>`, the binary runs through a six-step pipeline (see [Introduction](./introduction.md#how-it-works) for the full diagram):
 
 1. **Exact/relative path** — if the query is a valid path, `cd` directly
-2. **Waypoint lookup** — `!` prefix triggers a pin lookup
+2. **Waypoint lookup** — `:` prefix triggers a pin lookup
 3. **Project lookup** — `@` prefix triggers a project root lookup
 4. **Frecency + fuzzy match** — the local scoring engine handles ~95% of queries
 4b. **Typo tolerance** — Damerau-Levenshtein fallback when fuzzy matching returns nothing

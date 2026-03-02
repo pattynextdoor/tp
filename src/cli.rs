@@ -210,16 +210,16 @@ fn suggest_closest(conn: &Connection, query: &str) -> Result<String> {
 }
 
 /// Print dynamic completion candidates for the given prefix.
-/// Outputs waypoint names (prefixed with !) and top directory basenames.
+/// Outputs waypoint names (prefixed with :) and top directory basenames.
 fn print_completions(conn: &Connection, prefix: &str) -> Result<()> {
-    // Waypoint completions for `!` prefix
-    if let Some(wp_prefix) = prefix.strip_prefix('!') {
+    // Waypoint completions for `:` prefix
+    if let Some(wp_prefix) = prefix.strip_prefix(':') {
         let mut stmt =
             conn.prepare("SELECT name FROM waypoints WHERE name LIKE ?1 ORDER BY name LIMIT 20")?;
         let pattern = format!("{}%", wp_prefix);
         let rows = stmt.query_map([&pattern], |row| row.get::<_, String>(0))?;
         for row in rows {
-            println!("!{}", row?);
+            println!(":{}", row?);
         }
         return Ok(());
     }

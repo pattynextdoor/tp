@@ -76,7 +76,7 @@ tp -i                 # open the interactive picker
 When you type `tp api`:
 
 1. **Literal check** — is `api` a relative/absolute path? If so, `cd` directly.
-2. **Waypoint check** — did you pin something as `!api`? Jump there.
+2. **Waypoint check** — did you pin something as `:api`? Jump there.
 3. **Project check** — is `@api` a known project root? Jump there.
 4. **Frecency search** — query all known directories, score by frequency + recency + fuzzy match.
 5. **AI reranking** (optional) — if the top two scores are within 20%, ask Claude Haiku to break the tie (<300ms).

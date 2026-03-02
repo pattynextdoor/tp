@@ -448,7 +448,7 @@ fn render_waypoints(frame: &mut ratatui::Frame, area: Rect, stats: &Stats) {
 
             Line::from(vec![
                 Span::styled(
-                    format!("  !{:<12}", name),
+                    format!("  :{:<12}", name),
                     Style::default().fg(Color::Yellow),
                 ),
                 Span::styled(display_path, Style::default().fg(Color::DarkGray)),

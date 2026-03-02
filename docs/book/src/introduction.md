@@ -30,7 +30,7 @@ Free, open source, works entirely offline. No accounts, no cloud, no strings.
 - **Project awareness** — auto-detection via `.git`, `Cargo.toml`, `package.json`, `go.mod`, and more
 - **Project-scoped search** — `tp -p tests` stays inside your project boundaries
 - **Cross-project switching** — `tp @payments-service` jumps to a known project root
-- **Waypoints** — `tp --mark deploy` pins a directory; `tp !deploy` teleports there instantly
+- **Waypoints** — `tp --mark deploy` pins a directory; `tp :deploy` teleports there instantly
 - **Smart cold start** — bootstraps from shell history, git repos, and existing zoxide databases
 - **Built-in TUI picker** — interactive fuzzy finder showing project name, last modified, and git branch
 - **Full `cd` compatibility** — relative paths, `..`, `-`, `~`, absolute paths all just work

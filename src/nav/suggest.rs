@@ -245,7 +245,7 @@ pub fn display_suggestions(suggestions: &[Suggestion]) {
     for s in suggestions {
         let display_path = tilde_contract(&s.path, &home);
         eprintln!(
-            "  !{:<width$}  →  {:<40} ({} visits)",
+            "  :{:<width$}  →  {:<40} ({} visits)",
             s.name,
             display_path,
             s.access_count,
@@ -280,7 +280,7 @@ pub fn apply_suggestions(conn: &Connection, suggestions: &[Suggestion]) -> Resul
 
     for s in suggestions {
         let display_path = tilde_contract(&s.path, &home);
-        eprint!("  !{} → {}  [y/n/custom name/q]: ", s.name, display_path);
+        eprint!("  :{} → {}  [y/n/custom name/q]: ", s.name, display_path);
         io::stderr().flush()?;
 
         let input = match lines.next() {

@@ -16,7 +16,7 @@ pub struct NavResult {
 /// The 6-step navigation cascade.
 ///
 /// 1. Literal path → pass through (if it's a directory)
-/// 2. `!name` → waypoint lookup
+/// 2. `:name` → waypoint lookup
 /// 3. `@project` → project root jump
 /// 4. Frecency + fuzzy → if top score >0.8, navigate immediately
 /// 5. AI reranking — if top scores are close, ask AI to break the tie
@@ -72,8 +72,8 @@ pub fn navigate(
         }
     }
 
-    // Step 2: Waypoint lookup — query starts with !
-    if let Some(name) = joined.strip_prefix('!') {
+    // Step 2: Waypoint lookup — query starts with :
+    if let Some(name) = joined.strip_prefix(':') {
         let name = name.trim();
         if !name.is_empty() {
             if let Some(path) = waypoints::resolve_waypoint(conn, name)? {
@@ -252,7 +252,7 @@ mod tests {
 
         waypoints::add_waypoint(&conn, "test", dir).unwrap();
 
-        let result = navigate(&conn, &["!test".to_string()], false, false).unwrap();
+        let result = navigate(&conn, &[":test".to_string()], false, false).unwrap();
         assert!(result.is_some());
         assert_eq!(result.as_ref().unwrap().match_type, "waypoint");
     }

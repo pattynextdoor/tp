@@ -11,7 +11,7 @@ pub fn list_waypoints(conn: &Connection) -> Result<()> {
     let mut count = 0;
     for row in rows {
         let (name, path) = row?;
-        eprintln!("  !{:<20} {}", name, path);
+        eprintln!("  :{:<20} {}", name, path);
         count += 1;
     }
 
@@ -33,7 +33,7 @@ pub fn add_waypoint(conn: &Connection, name: &str, path: &str) -> Result<()> {
         rusqlite::params![name, path_str.as_ref()],
     )?;
 
-    eprintln!("Waypoint !{} → {}", name, path_str);
+    eprintln!("Waypoint :{} → {}", name, path_str);
     Ok(())
 }
 
@@ -43,7 +43,7 @@ pub fn remove_waypoint(conn: &Connection, name: &str) -> Result<()> {
     if changed == 0 {
         anyhow::bail!("waypoint '{}' not found", name);
     }
-    eprintln!("Removed waypoint !{}", name);
+    eprintln!("Removed waypoint :{}", name);
     Ok(())
 }
 

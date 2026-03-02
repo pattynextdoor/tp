@@ -56,7 +56,7 @@ tp @                  # pick from all known projects
 
 ```sh
 tp --mark deploy ~/infra/k8s/deploy
-tp !deploy            # instant teleport, no scoring needed
+tp :deploy            # instant teleport, no scoring needed
 tp --waypoints        # see all your pins
 ```
 
@@ -83,7 +83,7 @@ tp stats              # full TUI dashboard — heatmaps, project breakdown
 |-------------|-------------|
 | **Project-scoped search** | `tp -p tests` finds `tests/` within your current project, not globally |
 | **Project jumping** | `tp @payments-service` switches to a project by name |
-| **Waypoints** | `tp !deploy` — pin paths that frecency would forget |
+| **Waypoints** | `tp :deploy` — pin paths that frecency would forget |
 | **Self-healing database** | Dead paths pruned automatically, never suggested |
 | **Zero cold start** | Imports shell history, zoxide data, and discovers projects on first run |
 | **Tiebreaker reranking** | When two paths score equally, an optional BYOK oracle picks the right one |

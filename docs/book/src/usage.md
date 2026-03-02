@@ -8,7 +8,7 @@ After [installing](./installation.md) and setting up your shell, you can start n
 tp myproject               # jump to best match
 tp -p tests                # find tests/ within the current project
 tp @payments-service       # switch to a project by name
-tp !deploy                 # teleport to a pinned waypoint
+tp :deploy                 # teleport to a pinned waypoint
 tp -i                      # interactive fuzzy picker
 ```
 
@@ -21,7 +21,7 @@ tp <query>              Navigate to best match
 tp -i [query]           Interactive picker
 tp -p <query>           Search within current project
 tp @<project>           Jump to project root by name
-tp !<waypoint>          Jump to pinned waypoint
+tp :<waypoint>          Jump to pinned waypoint
 ```
 
 `tp` also supports full `cd` compatibility — relative paths, `..`, `-`, `~`, and absolute paths all just work.
@@ -36,10 +36,10 @@ tp --unmark <name>      Remove a pin
 tp --waypoints          List all waypoints
 ```
 
-Then jump to any pin with the `!` prefix:
+Then jump to any pin with the `:` prefix:
 
 ```sh
-tp !deploy              # teleport to the pinned "deploy" directory
+tp :deploy              # teleport to the pinned "deploy" directory
 ```
 
 ### Database Management
