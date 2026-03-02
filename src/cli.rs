@@ -198,44 +198,6 @@ fn print_completions(conn: &Connection, prefix: &str) -> Result<()> {
     Ok(())
 }
 
-/// Navigate back N steps in session history.
-/// Looks at the sessions table for recent from_path entries,
-/// skipping the current directory and deduplicating.
-fn navigate_back(conn: &Connection, steps: usize) -> Result<Option<String>> {
-    let cwd = std::env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default();
-
-    let mut stmt = conn.prepare(
-        "SELECT DISTINCT from_path FROM sessions
-         WHERE from_path IS NOT NULL AND from_path != ''
-         ORDER BY timestamp DESC
-         LIMIT 100",
-    )?;
-
-    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
-
-    let mut seen = std::collections::HashSet::new();
-    let mut stack: Vec<String> = Vec::new();
-
-    for row in rows {
-        let path = row?;
-        // Skip current directory and duplicates
-        if path == cwd || !seen.insert(path.clone()) {
-            continue;
-        }
-        // Only include paths that still exist
-        if std::path::Path::new(&path).exists() {
-            stack.push(path);
-            if stack.len() >= steps {
-                break;
-            }
-        }
-    }
-
-    Ok(stack.into_iter().last())
-}
-
 /// Entry point: parse CLI args and dispatch to the appropriate handler.
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
@@ -328,7 +290,7 @@ pub fn run() -> Result<()> {
             }
             Commands::Back { steps } => {
                 let conn = db::open()?;
-                match navigate_back(&conn, *steps)? {
+                match crate::nav::navigate_back(&conn, *steps)? {
                     Some(path) => {
                         println!("{}", path);
                         Ok(())

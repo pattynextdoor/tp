@@ -1,5 +1,6 @@
 pub mod frecency;
 pub mod matching;
+pub mod suggest;
 pub mod waypoints;
 
 use anyhow::Result;
@@ -111,6 +112,17 @@ pub fn navigate(
         }
     }
 
+    // Step 4b: Typo-tolerant fallback — if fuzzy matching found nothing,
+    // try Damerau-Levenshtein on the last path component
+    if candidates.is_empty() {
+        candidates = frecency::query_frecency_typo(conn, &joined, project_scope.as_deref())?;
+        if project_scoped {
+            if let Some(ref scope) = project_scope {
+                candidates.retain(|c| c.path.starts_with(scope.as_str()));
+            }
+        }
+    }
+
     if let Some(best) = candidates.first() {
         if best.score > 0.8 {
             return Ok(Some(NavResult {
@@ -160,6 +172,44 @@ pub fn navigate(
     }
 
     Ok(None)
+}
+
+/// Navigate back N steps in session history.
+/// Looks at the sessions table for recent from_path entries,
+/// skipping the current directory, dead paths, and deduplicating.
+pub fn navigate_back(conn: &Connection, steps: usize) -> Result<Option<String>> {
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT from_path FROM sessions
+         WHERE from_path IS NOT NULL AND from_path != ''
+         ORDER BY timestamp DESC
+         LIMIT 100",
+    )?;
+
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut stack: Vec<String> = Vec::new();
+
+    for row in rows {
+        let path = row?;
+        // Skip current directory and duplicates
+        if path == cwd || !seen.insert(path.clone()) {
+            continue;
+        }
+        // Only include paths that still exist
+        if std::path::Path::new(&path).exists() {
+            stack.push(path);
+            if stack.len() >= steps {
+                break;
+            }
+        }
+    }
+
+    Ok(stack.into_iter().last())
 }
 
 /// Look up a project by name from the projects table.
@@ -280,5 +330,144 @@ mod tests {
         let conn = db::open_memory().unwrap();
         let result = navigate(&conn, &["nonexistent_xyz_123".to_string()], false, false).unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_navigate_typo_fallback() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let projects_dir = tmp.path().join("projects");
+        std::fs::create_dir(&projects_dir).unwrap();
+        let projects_path = projects_dir.to_str().unwrap();
+
+        // Build up frecency so it has a real score
+        frecency::record_visit(&conn, projects_path, None).unwrap();
+        frecency::record_visit(&conn, projects_path, None).unwrap();
+
+        // "projetcs" is a transposition of "projects" — should match via typo fallback
+        let result = navigate(&conn, &["projetcs".to_string()], false, false).unwrap();
+        assert!(result.is_some(), "typo fallback should find 'projects'");
+        assert!(result.unwrap().path.contains("projects"));
+    }
+
+    #[test]
+    fn test_navigate_typo_short_query_no_fallback() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir(&src_dir).unwrap();
+        let src_path = src_dir.to_str().unwrap();
+
+        frecency::record_visit(&conn, src_path, None).unwrap();
+
+        // "scr" is too short (3 chars) for typo tolerance
+        let result = navigate(&conn, &["scr".to_string()], false, false).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_navigate_back_empty_history() {
+        let conn = db::open_memory().unwrap();
+        let result = navigate_back(&conn, 1).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_navigate_back_one_step() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir_a = tmp.path().join("a");
+        let dir_b = tmp.path().join("b");
+        std::fs::create_dir(&dir_a).unwrap();
+        std::fs::create_dir(&dir_b).unwrap();
+
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![dir_a.to_str().unwrap(), dir_b.to_str().unwrap()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![dir_b.to_str().unwrap(), dir_a.to_str().unwrap()],
+        )
+        .unwrap();
+
+        let result = navigate_back(&conn, 1).unwrap();
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_navigate_back_two_steps() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir_a = tmp.path().join("a");
+        let dir_b = tmp.path().join("b");
+        let dir_c = tmp.path().join("c");
+        std::fs::create_dir(&dir_a).unwrap();
+        std::fs::create_dir(&dir_b).unwrap();
+        std::fs::create_dir(&dir_c).unwrap();
+
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![dir_a.to_str().unwrap(), dir_b.to_str().unwrap()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![dir_b.to_str().unwrap(), dir_c.to_str().unwrap()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![dir_c.to_str().unwrap(), dir_a.to_str().unwrap()],
+        )
+        .unwrap();
+
+        let result = navigate_back(&conn, 2).unwrap();
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_navigate_back_deduplicates() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir_a = tmp.path().join("a");
+        std::fs::create_dir(&dir_a).unwrap();
+
+        for _ in 0..5 {
+            conn.execute(
+                "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+                rusqlite::params![dir_a.to_str().unwrap(), "/tmp/whatever"],
+            )
+            .unwrap();
+        }
+
+        // back(2) can only find 1 unique path, so it returns that single path
+        // (the function returns whatever it collected, even if fewer than `steps`)
+        let result = navigate_back(&conn, 2).unwrap();
+        assert_eq!(result.as_deref(), Some(dir_a.to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_navigate_back_skips_dead_paths() {
+        let conn = db::open_memory().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let good = tmp.path().join("good");
+        std::fs::create_dir(&good).unwrap();
+
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params![good.to_str().unwrap(), "/tmp/whatever"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sessions (from_path, to_path, match_type) VALUES (?1, ?2, 'visit')",
+            rusqlite::params!["/nonexistent/dead/path", "/tmp/whatever"],
+        )
+        .unwrap();
+
+        let result = navigate_back(&conn, 1).unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), good.to_str().unwrap());
     }
 }
