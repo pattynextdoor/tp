@@ -14,9 +14,9 @@
 
 ---
 
-`cd` replacements like zoxide are fast — until you work across multiple projects. The moment you have `src/` in twelve repos and `config/` everywhere, frecency alone gives you the *most visited* match, not the *right* one.
+A terminal navigator that understands your projects, not just your history.
 
-`tp` fixes this. It knows which project you're in, scopes matches accordingly, and gets you to the right directory in one shot — even when the names collide. Built in Rust, faster than zoxide on queries, works in six shells, learns from day one.
+`tp` combines frecency with project awareness — so when you type `tp src`, it picks the `src/` in the project you're actually working in. Built in Rust, works in six shells, useful from the first command.
 
 ## Quick Start
 
@@ -42,15 +42,16 @@ tp -i                      # interactive fuzzy picker
 
 ## Why tp?
 
-When you only have one project, any tool works. When you juggle five — that's where tp earns its keep.
+If you juggle multiple projects, tp was built for you.
 
-| Scenario | zoxide | tp |
-|----------|--------|----|
-| `src` with 12 repos on disk | Sends you to whichever `src/` you visited most, ever | Sends you to `src/` in your **current project** |
-| Jump to a repo by name | ❌ Type enough of the path to disambiguate | `tp @payments-service` |
-| Pin a deploy path you use monthly | ❌ Frecency decays it away | `tp !deploy` — waypoints don't decay |
-| Deleted a directory last week | Still suggests it until score decays | Auto-prunes dead paths on every query |
-| First run, empty database | Cold start — learn from scratch | Imports shell history + zoxide + discovers projects |
+| What you get | How it works |
+|-------------|-------------|
+| **Project-scoped search** | `tp -p tests` finds `tests/` within your current project, not globally |
+| **Project jumping** | `tp @payments-service` switches to a project by name |
+| **Waypoints** | `tp !deploy` — pin paths that frecency would forget |
+| **Self-healing database** | Dead paths pruned automatically, never suggested |
+| **Zero cold start** | Imports shell history, zoxide data, and discovers projects on first run |
+| **AI tiebreaker** | When two paths score equally, an optional AI oracle picks the right one |
 
 ## Features
 
