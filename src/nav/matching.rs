@@ -1,5 +1,12 @@
 use strsim::damerau_levenshtein;
 
+/// Extract the last component of a path, handling both `/` and `\` separators.
+fn last_path_component(path: &str) -> &str {
+    path.rsplit(|c: char| c == '/' || c == '\\')
+        .next()
+        .unwrap_or(path)
+}
+
 /// Detect whether a query string is a literal filesystem path.
 ///
 /// Returns true for `.`, `..`, `-`, `~`, `/foo`, `./foo`, `../foo`,
@@ -26,7 +33,7 @@ pub fn fuzzy_score(query: &str, path: &str) -> f64 {
     let query_lower = query.to_lowercase();
     let path_lower = path.to_lowercase();
 
-    let last_component = path_lower.rsplit('/').next().unwrap_or(&path_lower);
+    let last_component = last_path_component(&path_lower);
 
     // Exact last component match
     if last_component == query_lower {
@@ -67,7 +74,7 @@ pub fn typo_score(query: &str, path: &str) -> f64 {
     }
 
     let path_lower = path.to_lowercase();
-    let last_component = path_lower.rsplit('/').next().unwrap_or(&path_lower);
+    let last_component = last_path_component(&path_lower);
 
     let max_distance = if query_lower.len() <= 8 { 1 } else { 2 };
 
