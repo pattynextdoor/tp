@@ -373,3 +373,105 @@ fn test_sync_stub() {
     assert_eq!(code, 0);
     assert!(stderr.contains("Pro feature"));
 }
+
+// ============================================================
+// AI feature tests (no API key — graceful degradation)
+// ============================================================
+
+#[test]
+fn test_recall_no_api_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Seed some session data
+    run_tp(tmp.path(), &["add", "/tmp"]);
+
+    let (_, stderr, code) = run_tp(tmp.path(), &["--recall"]);
+    assert_eq!(code, 0);
+    // Without visits in last 24h to real paths, should say "No navigation history"
+    // OR print raw stats fallback. Either way, should not crash.
+    assert!(
+        stderr.contains("No navigation history") || stderr.contains("Session recall"),
+        "recall should handle missing API key gracefully, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_index_stub() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["index"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("semantic project indexing"));
+    assert!(
+        stderr.contains("coming") || stderr.contains("API key"),
+        "index should show stub or API key message, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_index_with_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("my-project");
+    std::fs::create_dir(&target).unwrap();
+
+    let (_, stderr, code) = run_tp(tmp.path(), &["index", target.to_str().unwrap()]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("Target:"));
+}
+
+#[test]
+fn test_analyze_stub() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["analyze"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("workflow pattern extraction"));
+    assert!(
+        stderr.contains("coming") || stderr.contains("API key"),
+        "analyze should show stub or API key message, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_suggest_no_api_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["suggest"]);
+    assert_eq!(code, 0);
+    // With empty DB, should say "No suggestions"
+    assert!(stderr.contains("No suggestions"));
+}
+
+#[test]
+fn test_suggest_ai_flag_without_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Even with --ai flag, should not crash without API key
+    let (_, stderr, code) = run_tp(tmp.path(), &["suggest", "--ai"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("No suggestions"));
+}
+
+#[test]
+fn test_doctor_no_api_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    run_tp(tmp.path(), &["add", "/tmp"]);
+
+    let (_, stderr, code) = run_tp(tmp.path(), &["doctor"]);
+    assert_eq!(code, 0);
+    assert!(
+        stderr.contains("not set") || stderr.contains("API key"),
+        "doctor should report missing API key, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_setup_ai_no_key() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["--setup-ai"]);
+    assert_eq!(code, 0);
+    assert!(
+        stderr.contains("No API key") || stderr.contains("TP_API_KEY"),
+        "setup-ai should explain how to set the key, got: {}",
+        stderr
+    );
+}
