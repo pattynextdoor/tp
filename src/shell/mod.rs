@@ -63,6 +63,7 @@ fn generate_zsh(cmd: &str) -> String {
     format!(
         r#"# tp shell integration for zsh
 {cmd}() {{
+    setopt localoptions NO_BANG_HIST
     local result
     result="$(command tp "$@")"
     if [[ -d "$result" ]]; then
