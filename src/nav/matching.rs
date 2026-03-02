@@ -1,3 +1,5 @@
+use strsim::damerau_levenshtein;
+
 /// Detect whether a query string is a literal filesystem path.
 ///
 /// Returns true for `.`, `..`, `-`, `~`, `/foo`, `./foo`, `../foo`,
@@ -48,6 +50,33 @@ pub fn fuzzy_score(query: &str, path: &str) -> f64 {
     }
 
     0.0
+}
+
+/// Score a query against a path using typo tolerance (Damerau-Levenshtein).
+///
+/// Only activates for queries of 5+ characters. Compares the query against
+/// the last path component and allows:
+/// - 1 edit for queries of 5–8 characters
+/// - 2 edits for queries of 9+ characters
+///
+/// Returns 0.4 on match (below all fuzzy tiers), 0.0 otherwise.
+pub fn typo_score(query: &str, path: &str) -> f64 {
+    let query_lower = query.to_lowercase();
+    if query_lower.len() < 5 {
+        return 0.0;
+    }
+
+    let path_lower = path.to_lowercase();
+    let last_component = path_lower.rsplit('/').next().unwrap_or(&path_lower);
+
+    let max_distance = if query_lower.len() <= 8 { 1 } else { 2 };
+
+    let distance = damerau_levenshtein(&query_lower, last_component);
+    if distance <= max_distance {
+        0.4
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]
@@ -157,5 +186,63 @@ mod tests {
     #[test]
     fn test_fuzzy_root_path() {
         assert_eq!(fuzzy_score("home", "/home"), 1.0);
+    }
+
+    // --- typo_score tests ---
+
+    #[test]
+    fn test_typo_short_query_rejected() {
+        // Queries under 5 chars should never match via typo tolerance
+        assert_eq!(typo_score("src", "/home/user/sra"), 0.0);
+        assert_eq!(typo_score("docs", "/home/user/dcos"), 0.0);
+    }
+
+    #[test]
+    fn test_typo_transposition() {
+        // "projetcs" → "projects" (transposition, distance 1)
+        assert_eq!(typo_score("projetcs", "/home/user/projects"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_substitution() {
+        // "projexts" → "projects" (substitution, distance 1)
+        assert_eq!(typo_score("projexts", "/home/user/projects"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_insertion() {
+        // "prrojects" → "projects" (insertion, distance 1)
+        assert_eq!(typo_score("prrojects", "/home/user/projects"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_deletion() {
+        // "projet" (6 chars) → "projects": missing 'c' and 's', distance 2 — over limit
+        assert_eq!(typo_score("projet", "/home/user/projects"), 0.0);
+        // "proects" (7 chars) → "projects": missing 'j', distance 1 — within limit
+        assert_eq!(typo_score("proects", "/home/user/projects"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_long_query_allows_two_edits() {
+        // "documetnss" (10 chars) → "documents" (distance 2: transposition + extra s)
+        assert_eq!(typo_score("documetnss", "/home/user/documents"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_too_many_edits() {
+        // "prjcts" (6 chars) → "projects" (distance 3) — too far for 5-8 range
+        assert_eq!(typo_score("prjcts", "/home/user/projects"), 0.0);
+    }
+
+    #[test]
+    fn test_typo_exact_match_still_works() {
+        // Exact match has distance 0 — should return 0.4
+        assert_eq!(typo_score("projects", "/home/user/projects"), 0.4);
+    }
+
+    #[test]
+    fn test_typo_case_insensitive() {
+        assert_eq!(typo_score("Projetcs", "/home/user/projects"), 0.4);
     }
 }

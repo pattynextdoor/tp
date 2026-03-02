@@ -1688,6 +1688,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shellexpand",
+ "strsim",
  "tempfile",
  "thiserror 1.0.69",
 ]
