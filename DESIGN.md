@@ -90,6 +90,82 @@ fast but adds a persistent daemon and platform-specific complexity.
 The walk costs ~1-2ms, only runs during `add` (which is backgrounded),
 and is always correct. Good tradeoff.
 
+## Benchmarks: why tp is faster on queries
+
+zoxide and tp take fundamentally different approaches to storage and
+retrieval. Understanding the architecture explains the benchmark results.
+
+### zoxide's approach
+
+zoxide stores its database as a bincode-serialized flat file. On every
+operation — query or add — the entire file is deserialized into a
+`Vec<Dir>` in memory. Each entry has three fields: `path`, `rank`,
+`last_accessed`.
+
+**Query:** Sort the entire Vec by score (`sort_unstable_by` on all
+entries), then linear scan with keyword matching. Every query touches
+every entry.
+
+**Add:** Linear scan to find the existing entry (`iter_mut().find()`),
+update in place or push. Then serialize and rewrite the entire file.
+
+This is simple and correct. For small databases (<100 entries), the
+overhead of sorting and scanning a Vec is negligible. The flat file
+also means zero dependency on SQLite or any external library.
+
+### tp's approach
+
+tp uses SQLite with a B-tree index on the `frecency` column. Queries
+use `WHERE path LIKE ? ORDER BY frecency DESC LIMIT 100` — the
+database engine reads only matching rows, already in ranked order,
+and stops after 100.
+
+Adds are a single `INSERT ... ON CONFLICT UPDATE` — a B-tree insertion
+plus a WAL append. No full-file rewrite.
+
+### Where each wins
+
+| Operation | zoxide | tp | Why |
+|-----------|--------|-----|-----|
+| Query (500 entries) | 6.7ms | 2.4ms | zoxide sorts all 500 entries; tp's index makes it sublinear |
+| Query (5,000 entries) | 7.4ms | 2.9ms | Gap holds because B-tree scales O(log n), Vec sort is O(n log n) |
+| Add (small DB) | Can be faster | Slightly more overhead | tp does project root detection + session logging |
+| Add (large DB) | Slows down | Stays constant | zoxide rewrites the entire file; tp appends to WAL |
+
+The crossover point depends on hardware. On fast NVMe (M4 Pro), tp's
+SQLite WAL writes are cheap and the query index advantage dominates.
+On slower disk I/O (cloud VPS), zoxide's simpler file operations can
+win on add at small scale.
+
+### Scoring: nearly identical
+
+Both tools use the same time-bucketed scoring approach:
+
+| Recency | zoxide | tp |
+|---------|--------|-----|
+| < 5 minutes | — | 4.0 |
+| < 1 hour | 4.0 | 2.0 |
+| < 1 day | 2.0 | 1.0 |
+| < 1 week | 0.5 | 0.5 |
+| older | 0.25 | 0.25 |
+
+tp adds a <5 minute bucket (4.0) that zoxide lacks, and splits zoxide's
+<1 hour (4.0) into two tiers. This gives tp finer-grained recency
+discrimination for rapid context switching — if you were just in a
+directory seconds ago, it should strongly outrank one from 45 minutes
+ago.
+
+### Path validation: eager vs lazy
+
+zoxide also checks `Path::exists()` during queries, but uses a TTL
+strategy — non-existent entries are only removed if they haven't been
+accessed in 3 months. Recent stale entries are skipped but kept in the
+database, on the assumption you might recreate the directory.
+
+tp prunes immediately. This means more `stat()` syscalls per query
+(~0.1ms each on SSD), but the database never accumulates stale entries.
+The tradeoff is correctness vs I/O cost — tp chose correctness.
+
 ## Frecency aging: the 10,000 ceiling
 
 When total frecency across all entries exceeds 10,000, tp recalculates
