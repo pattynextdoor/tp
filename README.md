@@ -14,9 +14,9 @@
 
 ---
 
-Most navigation tools treat your filesystem like a flat list of places you've been. `tp` actually pays attention. It knows which project you're in, remembers your patterns, and — when it's truly stumped — quietly consults an oracle to figure out where you meant to go.
+`cd` replacements like zoxide are fast — until you work across multiple projects. The moment you have `src/` in twelve repos and `config/` everywhere, frecency alone gives you the *most visited* match, not the *right* one.
 
-Built in Rust. Works in six shells. Learns from day one. No config required, but every knob is there if you want it.
+`tp` fixes this. It knows which project you're in, scopes matches accordingly, and gets you to the right directory in one shot — even when the names collide. Built in Rust, faster than zoxide on queries, works in six shells, learns from day one.
 
 ## Quick Start
 
@@ -42,16 +42,15 @@ tp -i                      # interactive fuzzy picker
 
 ## Why tp?
 
-Existing tools make you choose: fast-but-dumb or precise-but-manual. `tp` refuses to choose.
+When you only have one project, any tool works. When you juggle five — that's where tp earns its keep.
 
-| Tool | Strength | Weakness |
-|------|----------|----------|
-| **zoxide** | Fast, Rust, clean UX | No project awareness, no pinning, no AI, cold start |
-| **z.lua** | Context-aware jumps | Slower, Lua dependency, no project scoping |
-| **fasd** | Tracks files & dirs | Unmaintained since 2015 |
-| **fastTravelCLI** | Manual waypoints | No learning, fully manual |
-
-`tp` is what happens when you give zoxide a sense of place, a memory, and a mild case of precognition.
+| Scenario | zoxide | tp |
+|----------|--------|----|
+| `src` with 12 repos on disk | Sends you to whichever `src/` you visited most, ever | Sends you to `src/` in your **current project** |
+| Jump to a repo by name | ❌ Type enough of the path to disambiguate | `tp @payments-service` |
+| Pin a deploy path you use monthly | ❌ Frecency decays it away | `tp !deploy` — waypoints don't decay |
+| Deleted a directory last week | Still suggests it until score decays | Auto-prunes dead paths on every query |
+| First run, empty database | Cold start — learn from scratch | Imports shell history + zoxide + discovers projects |
 
 ## Features
 
