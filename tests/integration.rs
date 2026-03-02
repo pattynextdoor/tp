@@ -33,7 +33,6 @@ fn run_tp(tmp: &std::path::Path, args: &[&str]) -> (String, String, i32) {
 }
 
 /// Run `tp` with custom env vars set.
-#[allow(dead_code)]
 fn run_tp_with_env(
     tmp: &std::path::Path,
     args: &[&str],
@@ -257,4 +256,120 @@ fn test_suggest_after_visits() {
         "suggest should output something, got: {}",
         stderr
     );
+}
+
+// ============================================================
+// Error / edge case tests
+// ============================================================
+
+#[test]
+fn test_query_nonexistent_exits_1() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, _, code) = run_tp(tmp.path(), &["query", "nonexistent_xyz_abc_123"]);
+    assert_eq!(code, 1);
+}
+
+#[test]
+fn test_remove_nonexistent_prints_not_found() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Seed the DB so it exists
+    run_tp(tmp.path(), &["add", "/tmp"]);
+
+    let (_, stderr, code) = run_tp(tmp.path(), &["remove", "/never/existed/path"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("Not found"));
+}
+
+#[test]
+fn test_init_invalid_shell() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["init", "invalid_shell_xyz"]);
+    assert_ne!(code, 0);
+    assert!(
+        stderr.contains("Unsupported")
+            || stderr.contains("unsupported")
+            || stderr.contains("Error")
+            || stderr.contains("error"),
+        "should print an error for invalid shell, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_import_unsupported_tool() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["import", "--from", "unsupported_tool"]);
+    assert_eq!(code, 0); // prints message but doesn't error
+    assert!(stderr.contains("not yet supported"));
+}
+
+#[test]
+fn test_ls_empty_db() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["ls"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("No directories tracked"));
+}
+
+#[test]
+fn test_exclude_dirs_filtering() {
+    let tmp = tempfile::tempdir().unwrap();
+    let good = tmp.path().join("good-project");
+    let bad = tmp.path().join("excluded-dir");
+    std::fs::create_dir(&good).unwrap();
+    std::fs::create_dir(&bad).unwrap();
+
+    // Add both
+    run_tp(tmp.path(), &["add", good.to_str().unwrap()]);
+    run_tp(tmp.path(), &["add", bad.to_str().unwrap()]);
+
+    // Query with TP_EXCLUDE_DIRS set — excluded dir should not appear in ls
+    let (_, stderr, _) = run_tp_with_env(
+        tmp.path(),
+        &["ls"],
+        &[("TP_EXCLUDE_DIRS", bad.to_str().unwrap())],
+    );
+    assert!(
+        !stderr.contains("excluded-dir"),
+        "excluded dir should not appear in ls output, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("good-project"),
+        "non-excluded dir should still appear, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_back_empty_history() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Seed DB so it exists
+    run_tp(tmp.path(), &["add", "/tmp"]);
+
+    let (_, stderr, code) = run_tp(tmp.path(), &["back"]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("No navigation history"));
+}
+
+#[test]
+fn test_short_typo_no_false_match() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("src");
+    std::fs::create_dir(&dir).unwrap();
+
+    run_tp(tmp.path(), &["add", dir.to_str().unwrap()]);
+
+    // "scr" is 3 chars — below typo tolerance threshold
+    // It also won't substring-match "src" since "scr" is not in "src"
+    let (_, _, code) = run_tp(tmp.path(), &["query", "scr"]);
+    assert_eq!(code, 1, "short typo should not match");
+}
+
+#[test]
+fn test_sync_stub() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_, stderr, code) = run_tp(tmp.path(), &["sync"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("Pro feature"));
 }
