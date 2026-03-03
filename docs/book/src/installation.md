@@ -1,10 +1,22 @@
 # Installation
 
-## From Source
-
-Build and install `tp` with Cargo:
+## From crates.io
 
 ```sh
+cargo install tp-nav
+```
+
+## Via Homebrew
+
+```sh
+brew install pattynextdoor/tap/tp
+```
+
+## From Source
+
+```sh
+git clone https://github.com/pattynextdoor/tp.git
+cd tp
 cargo install --path .
 ```
 

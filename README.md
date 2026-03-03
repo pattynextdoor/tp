@@ -26,8 +26,22 @@ Project-aware navigation that combines frecency with context — so when you typ
 ## Install
 
 ```sh
-cargo install --path .
+cargo install tp-nav
 eval "$(tp init zsh)"     # or bash, fish, powershell, nushell, elvish
+```
+
+Or via Homebrew:
+
+```sh
+brew install pattynextdoor/tap/tp
+```
+
+Or from source:
+
+```sh
+git clone https://github.com/pattynextdoor/tp.git
+cd tp
+cargo install --path .
 ```
 
 That's it. On first run, tp bootstraps itself from your shell history, zoxide (if installed), and common code directories. No cold start.
