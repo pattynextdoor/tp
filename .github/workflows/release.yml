@@ -83,3 +83,99 @@ jobs:
         with:
           generate_release_notes: true
           files: artifacts/**/*
+
+  publish-crate:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew formula
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute sha256 hashes
+        id: hashes
+        run: |
+          BASE="https://github.com/pattynextdoor/tp/releases/download/${GITHUB_REF_NAME}"
+          echo "macos_arm=$(curl -sL ${BASE}/tp-macos-aarch64.tar.gz | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "macos_x86=$(curl -sL ${BASE}/tp-macos-x86_64.tar.gz | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm=$(curl -sL ${BASE}/tp-linux-aarch64.tar.gz | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_x86=$(curl -sL ${BASE}/tp-linux-x86_64.tar.gz | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate formula
+        run: |
+          cat > tp.rb << 'FORMULA'
+          class Tp < Formula
+            desc "Teleport anywhere in your codebase — AI-enhanced, project-aware directory navigation"
+            homepage "https://github.com/pattynextdoor/tp"
+            license "MIT"
+            version "${{ steps.version.outputs.version }}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/pattynextdoor/tp/releases/download/v#{version}/tp-macos-aarch64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.macos_arm }}"
+              else
+                url "https://github.com/pattynextdoor/tp/releases/download/v#{version}/tp-macos-x86_64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.macos_x86 }}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/pattynextdoor/tp/releases/download/v#{version}/tp-linux-aarch64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.linux_arm }}"
+              else
+                url "https://github.com/pattynextdoor/tp/releases/download/v#{version}/tp-linux-x86_64.tar.gz"
+                sha256 "${{ steps.hashes.outputs.linux_x86 }}"
+              end
+            end
+
+            def install
+              bin.install "tp"
+            end
+
+            def caveats
+              <<~EOS
+                Add this to your shell config:
+
+                  # bash (~/.bashrc)
+                  eval "$(tp init bash)"
+
+                  # zsh (~/.zshrc)
+                  eval "$(tp init zsh)"
+
+                  # fish (~/.config/fish/config.fish)
+                  tp init fish | source
+              EOS
+            end
+
+            test do
+              assert_match "tp", shell_output("#{bin}/tp --version")
+            end
+          end
+          FORMULA
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' tp.rb
+
+      - name: Push to homebrew-tap
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        with:
+          source_file: tp.rb
+          destination_repo: pattynextdoor/homebrew-tap
+          destination_folder: Formula
+          user_email: patricktumbucon@gmail.com
+          user_name: pattynextdoor
+          commit_message: "Update tp formula to ${{ steps.version.outputs.version }}"
