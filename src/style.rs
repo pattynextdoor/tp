@@ -10,6 +10,18 @@ pub fn use_color() -> bool {
 }
 
 /// Check if stderr is a TTY (best effort, no deps).
+/// Returns true if stdout is connected to a terminal (not piped/captured).
+pub fn stdout_is_tty() -> bool {
+    #[cfg(unix)]
+    {
+        unsafe { libc::isatty(1) != 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        false // conservatively assume not a TTY on non-unix
+    }
+}
+
 fn atty_stderr() -> bool {
     #[cfg(unix)]
     {

@@ -710,6 +710,27 @@ pub fn run() -> Result<()> {
             crate::style::teleport_effect(&result.path, &result.match_type);
             // Print path to stdout — the shell wrapper captures this and does `cd`
             println!("{}", result.path);
+
+            // If stdout is a TTY, the shell function isn't wrapping us —
+            // the path was printed but `cd` won't happen.
+            if crate::style::stdout_is_tty() {
+                eprintln!();
+                eprintln!(
+                    "  {}hint: tp printed the path but can't cd without shell integration.{}",
+                    crate::style::DIM,
+                    crate::style::RESET,
+                );
+                eprintln!(
+                    "  {}Add this to your shell config, then restart your terminal:{}\n",
+                    crate::style::DIM,
+                    crate::style::RESET,
+                );
+                eprintln!(
+                    "    {}eval \"$(tp init zsh)\"{}    # or bash, fish, etc.\n",
+                    crate::style::CYAN,
+                    crate::style::RESET,
+                );
+            }
         }
         None => {
             let query_str = cli.query.join(" ");
