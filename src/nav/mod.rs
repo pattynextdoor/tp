@@ -153,47 +153,45 @@ pub fn navigate(
     // check the semantic index for the current project.
     #[cfg(feature = "ai")]
     {
-        if let Some(ref cwd_str) = cwd {
-            if let Some(ref proj_root) = crate::project::detect_project_root(cwd_str) {
-                if crate::ai::semantic::has_index(conn, proj_root) {
-                    let terms: Vec<&str> = query.iter().map(|s| s.as_str()).collect();
-                    if let Ok(semantic_matches) =
-                        crate::ai::semantic::keyword_search(conn, proj_root, &terms)
-                    {
-                        if let Some(best) = semantic_matches.first() {
-                            // Strong keyword match — single result or clear winner
-                            if (semantic_matches.len() == 1
-                                || best.keyword_score
-                                    > semantic_matches.get(1).map_or(0, |m| m.keyword_score))
-                                && std::path::Path::new(&best.path).is_dir()
-                            {
-                                return Ok(Some(NavResult {
-                                    path: best.path.clone(),
-                                    match_type: "semantic".to_string(),
-                                }));
-                            }
+        if let Some(ref proj_root) = project_scope {
+            if crate::ai::semantic::has_index(conn, proj_root) {
+                let terms: Vec<&str> = query.iter().map(|s| s.as_str()).collect();
+                if let Ok(semantic_matches) =
+                    crate::ai::semantic::keyword_search(conn, proj_root, &terms)
+                {
+                    if let Some(best) = semantic_matches.first() {
+                        // Strong keyword match — single result or clear winner
+                        if (semantic_matches.len() == 1
+                            || best.keyword_score
+                                > semantic_matches.get(1).map_or(0, |m| m.keyword_score))
+                            && std::path::Path::new(&best.path).is_dir()
+                        {
+                            return Ok(Some(NavResult {
+                                path: best.path.clone(),
+                                match_type: "semantic".to_string(),
+                            }));
+                        }
 
-                            // Ambiguous — ask AI to pick
-                            if let Some(path) =
-                                crate::ai::semantic::ai_semantic_search(&joined, &semantic_matches)
-                            {
-                                if std::path::Path::new(&path).is_dir() {
-                                    return Ok(Some(NavResult {
-                                        path,
-                                        match_type: "semantic-ai".to_string(),
-                                    }));
-                                }
+                        // Ambiguous — ask AI to pick
+                        if let Some(path) =
+                            crate::ai::semantic::ai_semantic_search(&joined, &semantic_matches)
+                        {
+                            if std::path::Path::new(&path).is_dir() {
+                                return Ok(Some(NavResult {
+                                    path,
+                                    match_type: "semantic-ai".to_string(),
+                                }));
                             }
                         }
                     }
+                }
 
-                    // Staleness nudge
-                    if let Some(name) = crate::ai::semantic::check_staleness(conn, proj_root) {
-                        eprintln!(
-                            "  index for \"{}\" is 30+ days old — run `tp index` to refresh",
-                            name
-                        );
-                    }
+                // Staleness nudge
+                if let Some(name) = crate::ai::semantic::check_staleness(conn, proj_root) {
+                    eprintln!(
+                        "  index for \"{}\" is 30+ days old — run `tp index` to refresh",
+                        name
+                    );
                 }
             }
         }
@@ -527,17 +525,20 @@ mod tests {
         assert_eq!(result.unwrap(), good.to_str().unwrap());
     }
 
+    /// Verify that the semantic index functions integrate correctly with the
+    /// navigation database. The full cascade test (step 5.5 firing) requires
+    /// cwd to be inside the project, which can't be controlled in unit tests.
+    /// The semantic functions themselves are tested in `ai::semantic::tests`.
     #[test]
-    fn test_navigate_semantic_match() {
+    fn test_semantic_index_integration() {
         let conn = db::open_memory().unwrap();
 
-        // Set up a project with a semantic index
         let tmp = tempfile::tempdir().unwrap();
         let project_root = tmp.path().to_str().unwrap();
         let webhooks_dir = tmp.path().join("src/webhooks");
         std::fs::create_dir_all(&webhooks_dir).unwrap();
 
-        // Index it manually in the DB
+        // Populate the semantic index
         conn.execute(
             "INSERT INTO project_dirs (project_root, rel_path, description) VALUES (?1, ?2, ?3)",
             rusqlite::params![
@@ -548,17 +549,16 @@ mod tests {
         )
         .unwrap();
 
-        // Record multiple visits so the project has frecency data
-        frecency::record_visit(&conn, webhooks_dir.to_str().unwrap(), Some(project_root)).unwrap();
-        frecency::record_visit(&conn, webhooks_dir.to_str().unwrap(), Some(project_root)).unwrap();
-        frecency::record_visit(&conn, webhooks_dir.to_str().unwrap(), Some(project_root)).unwrap();
+        // Verify has_index returns true
+        assert!(crate::ai::semantic::has_index(&conn, project_root));
 
-        // Search for "webhooks" — matches via frecency (directory name match).
-        // The semantic index is also populated, so in a real scenario with matching
-        // cwd it would also match via semantic search.
-        let result = navigate(&conn, &["webhooks".to_string()], false, false).unwrap();
-
-        // Should find a result via frecency (semantic requires cwd inside the project)
-        assert!(result.is_some());
+        // Verify keyword_search finds the right directory by description
+        let results =
+            crate::ai::semantic::keyword_search(&conn, project_root, &["retry", "handling"])
+                .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].rel_path, "src/webhooks");
+        assert_eq!(results[0].keyword_score, 2);
+        assert!(results[0].path.ends_with("src/webhooks"));
     }
 }
