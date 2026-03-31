@@ -1,6 +1,8 @@
 pub mod cache;
 pub mod index;
 pub mod recall;
+#[allow(dead_code)]
+pub mod semantic;
 
 use anyhow::Result;
 
