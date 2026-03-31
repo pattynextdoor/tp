@@ -2,9 +2,12 @@
 
 What's next for tp. No timelines — things ship when they're ready.
 
+## Shipped
+
+- **Semantic project indexing** — `tp index` + search by concept: `tp webhook handler`
+
 ## Planned
 
-- **Semantic project indexing** — search by concept: `tp the service that handles webhook retries`
 - **Workflow prediction** — spot recurring navigation sequences and suggest the next destination
 - **Natural language nav** — `tp the auth service terraform module` resolves even when none of those words appear in the path
 - **VS Code extension** — navigate from the command palette

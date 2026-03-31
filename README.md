@@ -87,6 +87,14 @@ tp back 3             # go back three jumps
 tp ls                 # see your top directories by frecency
 ```
 
+**Semantic search:**
+
+```sh
+tp index              # index the current project's directory tree
+tp webhook handler    # finds src/webhooks/ by meaning, not just path name
+tp auth middleware    # matches descriptions, not just tokens
+```
+
 **Day-end stuff:**
 
 ```sh
@@ -104,6 +112,7 @@ tp stats              # full TUI dashboard — heatmaps, project breakdown
 | **Waypoints** | `tp :deploy` — pin paths that frecency would forget |
 | **Self-healing database** | Dead paths pruned automatically, never suggested |
 | **Zero cold start** | Imports shell history, zoxide data, and discovers projects on first run |
+| **Semantic indexing** | `tp index` + `tp webhook handler` — search by meaning, not just path names |
 | **Tiebreaker reranking** | When two paths score equally, an optional BYOK oracle picks the right one |
 
 ## Shell Setup
@@ -146,7 +155,7 @@ All via environment variables. Sane defaults — most people won't touch these.
 
 ## Status
 
-tp is in **beta**. Core navigation, frecency, project detection, waypoints, shell integration, BYOK reranking, TUI picker, and session recall are all working. See [ROADMAP.md](ROADMAP.md) for what's next.
+tp is in **beta**. Core navigation, frecency, project detection, waypoints, shell integration, BYOK reranking, TUI picker, session recall, and semantic project indexing are all working. See [ROADMAP.md](ROADMAP.md) for what's next.
 
 ## Deeper
 

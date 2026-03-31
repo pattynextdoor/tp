@@ -38,21 +38,33 @@ tp --recall
 
 This answers the Monday morning question: *"where was I?"*
 
+### Semantic Project Indexing
+
+Index a project's directory tree by concept, enabling natural language searches:
+
+```sh
+tp index            # index the current project
+tp index /path/to   # index a specific project
+```
+
+Once indexed, queries match against directory descriptions:
+
+```sh
+tp webhook handler   # finds src/webhooks/ even without "webhook" in the path
+tp auth middleware   # finds src/auth/ based on its semantic description
+```
+
+**How it works:**
+1. Walks the directory tree (top 3 levels, skipping noise like `node_modules`, `.git`, etc.)
+2. Sends the tree structure to Claude Haiku in a single API call
+3. Stores per-directory descriptions in SQLite
+4. At query time, matches against descriptions with local keyword search first, falling back to AI only when ambiguous
+
+The index respects `.gitignore` patterns. If an index is older than 30 days, `tp` will nudge you to re-index.
+
 ## Coming Soon (Stubbed)
 
 These features are stubbed and under active development:
-
-### Semantic Project Indexing
-
-```sh
-tp index [path]
-```
-
-Indexes a project by concept, enabling searches like:
-
-```sh
-tp the service that handles webhook retries
-```
 
 ### Workflow Prediction
 
