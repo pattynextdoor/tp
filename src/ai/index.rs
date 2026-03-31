@@ -5,7 +5,6 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 /// Directories to always skip when walking a project tree.
-#[allow(dead_code)]
 const IGNORED_DIRS: &[&str] = &[
     ".git",
     "node_modules",
@@ -29,7 +28,6 @@ const IGNORED_DIRS: &[&str] = &[
 ];
 
 /// Maximum directory depth to walk (relative to project root).
-#[allow(dead_code)]
 const MAX_DEPTH: usize = 3;
 
 /// Parse a `.gitignore` file and extract simple directory-name patterns.
@@ -37,7 +35,6 @@ const MAX_DEPTH: usize = 3;
 /// Skips comment lines (`#`), negation lines (`!`), glob patterns (`*`),
 /// and lines with internal `/` (nested paths). Strips leading `/` and
 /// trailing `/` so only bare directory names remain.
-#[allow(dead_code)]
 pub fn parse_gitignore(content: &str) -> Vec<String> {
     content
         .lines()
@@ -57,7 +54,6 @@ pub fn parse_gitignore(content: &str) -> Vec<String> {
 
 /// Walk a project directory tree up to `MAX_DEPTH` levels, collecting
 /// relative directory paths. Skips `IGNORED_DIRS` and any extra ignores.
-#[allow(dead_code)]
 pub fn walk_tree(root: &Path, extra_ignores: &[String]) -> Vec<String> {
     let mut results = Vec::new();
     walk_recursive(root, root, 0, extra_ignores, &mut results);
@@ -66,7 +62,6 @@ pub fn walk_tree(root: &Path, extra_ignores: &[String]) -> Vec<String> {
 }
 
 /// Recursive helper for `walk_tree`.
-#[allow(dead_code)]
 fn walk_recursive(
     root: &Path,
     current: &Path,
@@ -114,7 +109,6 @@ fn walk_recursive(
 }
 
 /// Build the AI prompt that asks for directory descriptions.
-#[allow(dead_code)]
 pub fn build_index_prompt(
     project_name: &str,
     project_kind: Option<&str>,
@@ -138,7 +132,6 @@ pub fn build_index_prompt(
 
 /// Parse the AI response, which may be plain JSON or wrapped in markdown
 /// code fences (```json ... ```).
-#[allow(dead_code)]
 pub fn parse_index_response(text: &str) -> Option<HashMap<String, String>> {
     let trimmed = text.trim();
 
@@ -158,7 +151,6 @@ pub fn parse_index_response(text: &str) -> Option<HashMap<String, String>> {
 
 /// Delete old index entries for this project root, then insert new ones.
 /// Also updates the `projects` table with the current `indexed_at` timestamp.
-#[allow(dead_code)]
 pub fn save_index(
     conn: &Connection,
     project_root: &str,
@@ -193,7 +185,6 @@ pub fn save_index(
 
 /// Index a project: walk its directory tree, send to AI for descriptions,
 /// and save results to the database.
-#[allow(dead_code)]
 #[cfg(feature = "ai")]
 pub fn index_project(conn: &Connection, target: &str) -> Result<()> {
     // Canonicalize the target path
@@ -293,7 +284,6 @@ pub fn index_project(conn: &Connection, target: &str) -> Result<()> {
 }
 
 /// Fallback when the `ai` feature is disabled.
-#[allow(dead_code)]
 #[cfg(not(feature = "ai"))]
 pub fn index_project(_conn: &Connection, _target: &str) -> Result<()> {
     eprintln!("AI features are not enabled");

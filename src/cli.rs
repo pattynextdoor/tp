@@ -137,7 +137,7 @@ pub enum Commands {
     /// Diagnose configuration issues
     Doctor,
 
-    /// AI: build a semantic index of a project (coming soon)
+    /// Build a semantic index of a project's directory tree
     Index {
         /// Path to the project to index (defaults to current directory)
         path: Option<String>,
@@ -561,30 +561,8 @@ pub fn run() -> Result<()> {
             }
             Commands::Index { path } => {
                 let target = path.as_deref().unwrap_or(".");
-                let abs = std::fs::canonicalize(target)
-                    .unwrap_or_else(|_| std::path::PathBuf::from(target));
-                eprintln!("tp index: semantic project indexing");
-                eprintln!("  Target: {}", abs.display());
-
-                #[cfg(feature = "ai")]
-                {
-                    match crate::ai::detect_api_key() {
-                        Some(_) => {
-                            eprintln!();
-                            eprintln!("Semantic indexing is coming in a future release.");
-                            eprintln!("This will let you search by concept:");
-                            eprintln!("  tp the service that handles webhook retries");
-                        }
-                        None => {
-                            eprintln!();
-                            eprintln!("Requires an API key. Run: tp --setup-ai");
-                        }
-                    }
-                }
-                #[cfg(not(feature = "ai"))]
-                {
-                    eprintln!("AI features are not enabled. Rebuild with --features ai");
-                }
+                let conn = db::open()?;
+                crate::ai::index::index_project(&conn, target)?;
                 Ok(())
             }
             Commands::Analyze => {
