@@ -45,7 +45,17 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_directories_frecency ON directories(frecency DESC);
 CREATE INDEX IF NOT EXISTS idx_directories_path ON directories(path);
 CREATE INDEX IF NOT EXISTS idx_directories_project_root ON directories(project_root);
+CREATE TABLE IF NOT EXISTS project_dirs (
+    id           INTEGER PRIMARY KEY,
+    project_root TEXT NOT NULL,
+    rel_path     TEXT NOT NULL,
+    description  TEXT NOT NULL,
+    indexed_at   INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+    UNIQUE(project_root, rel_path)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_timestamp ON sessions(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_project_dirs_root ON project_dirs(project_root);
 ";
 
 #[cfg(test)]
@@ -109,6 +119,54 @@ mod tests {
             )
             .unwrap();
         assert_eq!(path, "/home/user");
+    }
+
+    #[test]
+    fn project_dirs_table_exists() {
+        let conn = db::open_memory().unwrap();
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        assert!(tables.contains(&"project_dirs".to_string()));
+    }
+
+    #[test]
+    fn insert_project_dir() {
+        let conn = db::open_memory().unwrap();
+        conn.execute(
+            "INSERT INTO project_dirs (project_root, rel_path, description) VALUES (?1, ?2, ?3)",
+            ["/home/user/tp", "src/ai", "AI integration module"],
+        )
+        .unwrap();
+
+        let desc: String = conn
+            .query_row(
+                "SELECT description FROM project_dirs WHERE project_root = ?1 AND rel_path = ?2",
+                ["/home/user/tp", "src/ai"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(desc, "AI integration module");
+    }
+
+    #[test]
+    fn project_dir_unique_constraint() {
+        let conn = db::open_memory().unwrap();
+        conn.execute(
+            "INSERT INTO project_dirs (project_root, rel_path, description) VALUES (?1, ?2, ?3)",
+            ["/home/user/tp", "src/ai", "first"],
+        )
+        .unwrap();
+        let result = conn.execute(
+            "INSERT INTO project_dirs (project_root, rel_path, description) VALUES (?1, ?2, ?3)",
+            ["/home/user/tp", "src/ai", "second"],
+        );
+        assert!(result.is_err());
     }
 
     #[test]
