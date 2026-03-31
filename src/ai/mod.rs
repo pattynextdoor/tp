@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod index;
 pub mod recall;
 
 use anyhow::Result;
