@@ -145,15 +145,10 @@ pub fn teleport_effect(path: &str, match_type: &str) {
 
     // Pick a random flavor based on match type
     let flavor = match match_type {
-        "waypoint" => pick_random(&["📌 pinned →", "📌 waypoint →"]),
+        "waypoint" => pick_random(&["📌 waypoint →", "📌 fast traveled →"]),
         "project" => pick_random(&["📂 project →", "📂 entering →", "📂 switching to →"]),
         "picker" => pick_random(&["🎯 selected →", "🎯 targeted →"]),
-        "frecency" => pick_random(&[
-            "⚡ teleported →",
-            "⚡ warped →",
-            "⚡ blinked →",
-            "⚡ fast traveled →",
-        ]),
+        "frecency" => pick_random(&["⚡ teleported →", "⚡ warped →", "⚡ blinked →"]),
         "ai" => pick_random(&["🔮 divined →", "🔮 the oracle says →", "🔮 foretold →"]),
         "typo" => pick_random(&["🔧 close enough →", "🔧 you meant →", "🔧 autocorrected →"]),
         _ => pick_random(&["⚡ →", "⚡ teleported →", "⚡ warped →"]),
